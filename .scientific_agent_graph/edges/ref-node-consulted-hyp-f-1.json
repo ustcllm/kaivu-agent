@@ -1,9 +1,0 @@
-{
-  "edge_id": "ref-node::consulted::hyp-f-1",
-  "source_id": "ref-node",
-  "target_id": "hyp-f-1",
-  "relation": "consulted",
-  "project_id": "proj_graph_finish",
-  "topic": "finish",
-  "metadata": {}
-}

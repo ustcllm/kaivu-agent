@@ -1,8 +1,0 @@
-{
-  "node_id": "hyp-tool-1",
-  "node_type": "hypothesis",
-  "label": "tool query hypothesis",
-  "project_id": "proj_graph_tool",
-  "topic": "tool-query",
-  "metadata": {}
-}

@@ -1,0 +1,6 @@
+{
+  "accuracy": 0.87,
+  "loss": 0.31,
+  "seed": 13,
+  "note": "demo local-python executor output"
+}

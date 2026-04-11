@@ -1,9 +1,0 @@
-{
-  "edge_id": "causal-graph::proj_graph::graph-topic::tests::h1",
-  "source_id": "causal-graph::proj_graph::graph-topic",
-  "target_id": "h1",
-  "relation": "tests",
-  "project_id": "proj_graph",
-  "topic": "graph topic",
-  "metadata": {}
-}

@@ -1,9 +1,0 @@
-{
-  "edge_id": "edge-1",
-  "source_id": "neg-1",
-  "target_id": "hyp-surface-reconstruction",
-  "relation": "challenges",
-  "project_id": "proj_graph_memory",
-  "topic": "",
-  "metadata": {}
-}

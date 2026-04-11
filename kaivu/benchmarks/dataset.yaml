@@ -1,0 +1,22 @@
+﻿dataset_id: kaivu-kernel-benchmark
+version: 0.2.0
+task_family: kaivu_kernel
+description: Dataset-style benchmark suite for kaivu kernel capabilities.
+splits:
+  - smoke
+  - regression
+  - release
+metrics:
+  - case_pass_rate
+  - p0_pass_rate
+  - regression_count
+  - category_pass_rate
+  - provenance_replay_pass_rate
+governance:
+  owners:
+    - kaivu_core
+  update_policy:
+    - add a case when a kernel capability becomes release-critical
+    - keep P0 cases fail-fast
+    - preserve old passing cases as regression cases
+

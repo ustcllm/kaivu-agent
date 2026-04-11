@@ -1,9 +1,0 @@
-{
-  "edge_id": "negative::1::challenges::hypothesis::1",
-  "source_id": "negative::1",
-  "target_id": "hypothesis::1",
-  "relation": "challenges",
-  "project_id": "p-sync",
-  "topic": "sync topic",
-  "metadata": {}
-}
