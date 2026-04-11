@@ -27,6 +27,7 @@ async def search_memory(request: Request, payload: MemorySearchRequest) -> Memor
     results = runtime.search_memory(
         payload.query,
         max_results=payload.max_results,
+        discipline=payload.discipline,
         user_id=payload.user_id,
         project_id=payload.project_id,
         group_id=payload.group_id,
@@ -38,6 +39,7 @@ async def search_memory(request: Request, payload: MemorySearchRequest) -> Memor
 @router.get("/proposals", response_model=MemoryProposalListResponse)
 async def list_memory_proposals(
     request: Request,
+    discipline: str = "",
     user_id: str = "",
     project_id: str = "",
     group_id: str = "",
@@ -45,6 +47,7 @@ async def list_memory_proposals(
 ) -> MemoryProposalListResponse:
     runtime = request.app.state.workflow_runtime
     results = runtime.list_memory_proposals(
+        discipline=discipline,
         user_id=user_id,
         project_id=project_id,
         group_id=group_id,
@@ -57,12 +60,21 @@ async def list_memory_proposals(
 async def get_memory_audit(
     request: Request,
     filename: str,
+    discipline: str = "",
     user_id: str = "",
+    project_id: str = "",
     group_id: str = "",
     group_role: str = "",
 ) -> MemoryAuditResponse:
     runtime = request.app.state.workflow_runtime
-    result = runtime.get_memory_audit(filename=filename, user_id=user_id, group_id=group_id, group_role=group_role)
+    result = runtime.get_memory_audit(
+        filename=filename,
+        discipline=discipline,
+        user_id=user_id,
+        project_id=project_id,
+        group_id=group_id,
+        group_role=group_role,
+    )
     return MemoryAuditResponse(**result)
 
 
@@ -105,6 +117,7 @@ async def approve_memory_proposal(request: Request, payload: MemoryProposalDecis
     result = runtime.promote_memory(
         {
             "filename": payload.filename,
+            "discipline": payload.discipline,
             "target_scope": payload.target_scope or "group",
             "target_visibility": payload.target_visibility,
             "user_id": payload.user_id,

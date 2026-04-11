@@ -12,6 +12,7 @@ class WorkflowRunRequest(BaseModel):
     topic: str = Field(..., description="Research topic or scientific question.")
     dynamic_routing: bool = Field(default=True)
     report_path: str | None = Field(default=None)
+    discipline: str = ""
     user_id: str = ""
     project_id: str = ""
     group_id: str = ""
@@ -27,6 +28,7 @@ class WorkflowRunListItem(BaseModel):
     run_id: str
     topic: str
     status: RunStatus
+    discipline: str = ""
     user_id: str = ""
     project_id: str = ""
     group_id: str = ""
@@ -46,6 +48,7 @@ class WorkflowRunResponse(BaseModel):
     run_id: str
     status: RunStatus
     topic: str
+    discipline: str = ""
     user_id: str = ""
     project_id: str = ""
     group_id: str = ""
@@ -85,6 +88,7 @@ class UsageSummaryResponse(BaseModel):
 class MemorySearchRequest(BaseModel):
     query: str
     max_results: int = Field(default=5, ge=1, le=20)
+    discipline: str = ""
     user_id: str | None = None
     project_id: str | None = None
     group_id: str | None = None
@@ -103,6 +107,7 @@ class MemorySaveRequest(BaseModel):
     confidence: str = "medium"
     status: str = "active"
     owner_agent: str = "service"
+    discipline: str = ""
     user_id: str = ""
     project_id: str = ""
     group_id: str = ""
@@ -129,7 +134,9 @@ class MemoryReviewRequest(BaseModel):
     last_verified_at: str | None = None
     visibility: str | None = None
     promotion_status: str | None = None
+    discipline: str = ""
     user_id: str = ""
+    project_id: str = ""
     group_id: str = ""
     group_role: str = ""
 
@@ -138,6 +145,7 @@ class MemoryPromoteRequest(BaseModel):
     filename: str
     target_scope: str
     target_visibility: str | None = None
+    discipline: str = ""
     user_id: str = ""
     project_id: str = ""
     group_id: str = ""
@@ -174,6 +182,7 @@ class MemoryProposalListResponse(BaseModel):
 
 class MemoryProposalDecisionRequest(BaseModel):
     filename: str
+    discipline: str = ""
     user_id: str = ""
     project_id: str = ""
     group_id: str = ""
@@ -187,6 +196,7 @@ class MemoryAutoGovernRequest(BaseModel):
     automation_mode: str = "safe"
     dry_run: bool = False
     max_items: int = Field(default=25, ge=1, le=100)
+    discipline: str = ""
     user_id: str = ""
     project_id: str = ""
     group_id: str = ""
@@ -319,6 +329,10 @@ class LiteratureIngestRequest(BaseModel):
     title: str
     content: str
     filename: str | None = None
+    discipline: str = ""
+    user_id: str = ""
+    project_id: str = ""
+    group_id: str = ""
     target_scope: str = "project"
     user_mode: str = "auto"
     impact_level: str = "medium"
@@ -432,6 +446,7 @@ class CollaborationMemberListResponse(BaseModel):
 
 
 class ExperimentScopeFields(BaseModel):
+    discipline: str = ""
     user_id: str = ""
     project_id: str = ""
     group_id: str = ""
@@ -538,6 +553,7 @@ class ExperimentRecordListResponse(BaseModel):
 
 class RunHandoffSubmitRequest(ExperimentScopeFields):
     topic: str
+    discipline: str = ""
     contract: dict[str, Any]
     payload: dict[str, Any]
     claim_graph: dict[str, Any] = Field(default_factory=dict)

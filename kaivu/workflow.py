@@ -9,6 +9,11 @@ import sys
 from typing import Any
 
 from .agents import SubagentRuntime, SubagentSpec
+from .ai_research import (
+    AIResearchWorkflow,
+    AIResearchWorkflowInput,
+    augment_experiment_execution_loop_with_ai,
+)
 from .assets import build_unified_asset_summary
 from .autonomous_controller import build_autonomous_controller_summary
 from .anomaly_detector import build_anomaly_surprise_detector_summary
@@ -53,6 +58,7 @@ from .prompts import PromptBuilder
 from .reporting import render_markdown_report, write_markdown_report
 from .research_program import ResearchProgram, ResearchProgramRegistry, build_research_program_from_state
 from .run_handoff import build_run_handoff_contract_summary
+from .runtime.workspace import ResearchWorkspaceLayout
 from .risk_permissions import build_experiment_risk_permission_summary
 from .route_scheduler import build_research_route_scheduler_summary
 from .scheduler_judge import SchedulerLLMJudge, apply_scheduler_judgment_to_summary
@@ -99,6 +105,25 @@ def _safe_float(value: Any) -> float:
         return float(value)
     except Exception:
         return 0.0
+
+
+def _context_string(context: dict[str, Any], key: str) -> str:
+    value = context.get(key)
+    return str(value).strip() if value is not None else ""
+
+
+def _context_list(context: dict[str, Any], key: str) -> list[str]:
+    value = context.get(key)
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    if isinstance(value, str) and value.strip():
+        return [item.strip() for item in value.split(",") if item.strip()]
+    return []
+
+
+def _context_dict(context: dict[str, Any], key: str) -> dict[str, Any]:
+    value = context.get(key)
+    return value if isinstance(value, dict) else {}
 
 
 @dataclass(slots=True)
@@ -180,10 +205,19 @@ class ScientificWorkflow:
         )
         self.collaboration_context = collaboration_context or {}
         self.prompt_builder = PromptBuilder()
-        self.graph_registry = ResearchGraphRegistry(self.cwd / ".state" / "graph")
-        self.event_ledger = ResearchEventLedger(self.cwd / ".state" / "events")
-        self.experiment_registry = ExperimentRegistry(self.cwd / ".state" / "experiments")
-        self.research_program_registry = ResearchProgramRegistry(self.cwd / ".state" / "programs")
+        self.workspace_layout = ResearchWorkspaceLayout.for_context(
+            self.cwd,
+            discipline=str(self.collaboration_context.get("discipline", "")).strip()
+            or str(self.collaboration_context.get("primary_discipline", "")).strip(),
+            project_id=str(self.collaboration_context.get("project_id", "")).strip(),
+            group_id=str(self.collaboration_context.get("group_id", "")).strip(),
+            user_id=str(self.collaboration_context.get("user_id", "")).strip(),
+        )
+        self.workspace_layout.ensure()
+        self.graph_registry = ResearchGraphRegistry(self.workspace_layout.state_root / "graph")
+        self.event_ledger = ResearchEventLedger(self.workspace_layout.state_root / "events")
+        self.experiment_registry = ExperimentRegistry(self.workspace_layout.state_root / "experiments")
+        self.research_program_registry = ResearchProgramRegistry(self.workspace_layout.state_root / "programs")
         self.executor_registry = ScientificExecutorRegistry(
             cwd=self.cwd,
             graph_registry=self.graph_registry,
@@ -191,7 +225,13 @@ class ScientificWorkflow:
         self.subagent_runtime = SubagentRuntime(
             cwd=self.cwd,
             permission_policy=self.permission_policy,
-            memory_manager=MemoryManager(self.cwd),
+            memory_manager=MemoryManager(
+                self.cwd,
+                memory_root=self.workspace_layout.memory_root,
+                state_root=self.workspace_layout.state_root,
+            ),
+            memory_root=self.workspace_layout.memory_root,
+            state_root=self.workspace_layout.state_root,
         )
 
     async def run(
@@ -262,6 +302,11 @@ class ScientificWorkflow:
         claim_graph["research_plan_summary"] = research_state.get("research_plan_summary", {})
         claim_graph["literature_synthesis"] = research_state.get("literature_synthesis", {})
         claim_graph["systematic_review_summary"] = research_state.get("systematic_review_summary", {})
+        claim_graph["ai_research_workflow_summary"] = research_state.get("ai_research_workflow_summary", {})
+        claim_graph["ai_evaluation_protocol"] = research_state.get("ai_evaluation_protocol", {})
+        claim_graph["ai_training_recipe"] = research_state.get("ai_training_recipe", {})
+        claim_graph["ai_ablation_plan"] = research_state.get("ai_ablation_plan", {})
+        claim_graph["workspace_layout_summary"] = research_state.get("workspace_layout_summary", {})
         claim_graph["causal_graph_summary"] = research_state.get("causal_graph_summary", {})
         claim_graph["discipline_adaptation_summary"] = research_state.get("discipline_adaptation_summary", {})
         claim_graph["autonomy_summary"] = research_state.get("autonomy_summary", {})
@@ -2272,6 +2317,132 @@ class ScientificWorkflow:
             "edges": edges,
         }
 
+    def _derive_ai_research_workflow_summary(
+        self,
+        *,
+        topic: str,
+        literature_synthesis: dict[str, Any],
+        systematic_review_summary: dict[str, Any],
+        evidence_review_summary: dict[str, Any],
+        discipline_adaptation_summary: dict[str, Any],
+        project_distill: dict[str, Any],
+        failure_intelligence_summary: dict[str, Any],
+    ) -> dict[str, Any]:
+        if not self._should_run_ai_research_workflow(topic, discipline_adaptation_summary):
+            return {
+                "workflow_state": "not_applicable",
+                "reason": "input was not classified as artificial intelligence research",
+            }
+        try:
+            request = AIResearchWorkflowInput(
+                research_question=topic,
+                dataset_path=_context_string(self.collaboration_context, "dataset_path"),
+                target_column=_context_string(self.collaboration_context, "target_column"),
+                id_column=_context_string(self.collaboration_context, "id_column"),
+                task_type=self._infer_ai_task_type(topic),
+                metric=_context_string(self.collaboration_context, "metric"),
+                metric_direction=_context_string(self.collaboration_context, "metric_direction"),
+                available_compute=_context_string(self.collaboration_context, "available_compute") or "local_cpu",
+                candidate_models=_context_list(self.collaboration_context, "candidate_models"),
+                project_id=str(self.collaboration_context.get("project_id", "")).strip(),
+                output_dir=str(self.workspace_layout.state_root / "ai_research" / self._slugify_text(topic)),
+                research_context={
+                    "topic": topic,
+                    "mode": str(self.collaboration_context.get("ai_research_mode", "guided")).strip() or "guided",
+                    "discipline_adaptation_summary": discipline_adaptation_summary,
+                    "evidence_review_summary": evidence_review_summary,
+                    "project_distill": project_distill,
+                    "failure_intelligence_summary": failure_intelligence_summary,
+                },
+                literature_context={
+                    "literature_synthesis": literature_synthesis,
+                    "systematic_review_summary": systematic_review_summary,
+                },
+                benchmark_context=_context_dict(self.collaboration_context, "benchmark_context"),
+                repo_context=_context_dict(self.collaboration_context, "repo_context"),
+                prior_memory_context={
+                    "research_program_context": self.collaboration_context.get("research_program_context", {}),
+                    "scheduler_memory_context": self.collaboration_context.get("scheduler_memory_context", {}),
+                },
+            )
+            result = AIResearchWorkflow(cwd=self.cwd).run(request).to_dict()
+            result["workflow_state"] = "planned"
+            result["automation_mode"] = str(self.collaboration_context.get("ai_research_mode", "guided")).strip() or "guided"
+            result["auto_trigger"] = True
+            return result
+        except Exception as exc:
+            return {
+                "workflow_state": "failed",
+                "error": str(exc),
+                "auto_trigger": True,
+            }
+
+    def _should_run_ai_research_workflow(
+        self,
+        topic: str,
+        discipline_adaptation_summary: dict[str, Any],
+    ) -> bool:
+        mode = str(self.collaboration_context.get("ai_research_mode", "auto")).strip().lower()
+        if mode in {"off", "disabled", "false", "0"}:
+            return False
+        if mode in {"on", "guided", "autonomous", "observe"}:
+            return True
+        explicit = str(self.collaboration_context.get("discipline", "")).strip().lower()
+        task_type = str(self.collaboration_context.get("task_type", "")).strip().lower()
+        primary = str(discipline_adaptation_summary.get("primary_discipline", "")).strip().lower()
+        if explicit in {"ai", "artificial_intelligence", "machine_learning"}:
+            return True
+        if primary == "artificial_intelligence":
+            return True
+        if task_type in {
+            "kaggle_competition",
+            "llm_fine_tuning",
+            "benchmark_reproduction",
+            "model_comparison",
+            "ablation_study",
+        }:
+            return True
+        if any(key in self.collaboration_context for key in ("dataset_path", "target_column", "metric", "candidate_models")):
+            return True
+        lowered = topic.lower()
+        return any(
+            token in lowered
+            for token in (
+                "kaggle",
+                "benchmark",
+                "dataset",
+                "classification",
+                "regression",
+                "training",
+                "fine-tuning",
+                "finetune",
+                "llm",
+                "machine learning",
+                "deep learning",
+                "model evaluation",
+                "ablation",
+            )
+        )
+
+    def _infer_ai_task_type(self, topic: str) -> str:
+        explicit = str(self.collaboration_context.get("task_type", "")).strip()
+        if explicit:
+            return explicit
+        lowered = topic.lower()
+        if "kaggle" in lowered:
+            return "kaggle_competition"
+        if "fine-tuning" in lowered or "finetune" in lowered or "fine tune" in lowered:
+            return "llm_fine_tuning"
+        if "reproduce" in lowered or "reproduction" in lowered or "benchmark" in lowered:
+            return "benchmark_reproduction"
+        if "ablation" in lowered:
+            return "ablation_study"
+        if "classification" in lowered:
+            return "classification"
+        if "regression" in lowered:
+            return "regression"
+        return "benchmark_reproduction"
+
     def _derive_research_state(
         self,
         topic: str,
@@ -2700,6 +2871,15 @@ class ScientificWorkflow:
             lab_meeting_consensus_summary=lab_meeting_consensus_summary,
             termination_strategy_summary=termination_strategy_summary,
         )
+        ai_research_workflow_summary = self._derive_ai_research_workflow_summary(
+            topic=topic,
+            literature_synthesis=literature_synthesis,
+            systematic_review_summary=systematic_review_summary,
+            evidence_review_summary=evidence_review_summary,
+            discipline_adaptation_summary=discipline_adaptation_summary,
+            project_distill=project_distill,
+            failure_intelligence_summary=failure_intelligence_summary,
+        )
         experiment_execution_loop_summary = build_experiment_execution_loop_summary(
             topic=topic,
             project_id=str(self.collaboration_context.get("project_id", "")).strip(),
@@ -2716,6 +2896,10 @@ class ScientificWorkflow:
             hypothesis_gate_summary=hypothesis_gate_summary,
             mid_run_control_summary=mid_run_control_summary,
             scheduler_memory_context=scheduler_memory_context,
+        )
+        experiment_execution_loop_summary = augment_experiment_execution_loop_with_ai(
+            experiment_execution_loop_summary,
+            ai_research_workflow_summary=ai_research_workflow_summary,
         )
         optimization_adapter_summary = build_optimization_adapter_summary(
             topic=topic,
@@ -2748,6 +2932,10 @@ class ScientificWorkflow:
             discipline_adapter_summary=discipline_adapter_summary,
             mid_run_control_summary=mid_run_control_summary,
             scheduler_memory_context=scheduler_memory_context,
+        )
+        experiment_execution_loop_summary = augment_experiment_execution_loop_with_ai(
+            experiment_execution_loop_summary,
+            ai_research_workflow_summary=ai_research_workflow_summary,
         )
         optimization_adapter_summary = build_optimization_adapter_summary(
             topic=topic,
@@ -2842,6 +3030,7 @@ class ScientificWorkflow:
         )
         kernel_state = {
             "topic": topic,
+            "workspace_layout_summary": self.workspace_layout.to_dict(),
             "current_stage": current_stage,
             "recommended_next_stage": next_stage,
             "blockers": list(dict.fromkeys(blockers))[:10],
@@ -2853,6 +3042,7 @@ class ScientificWorkflow:
             "scientific_problem_reframer_summary": scientific_problem_reframer_summary,
             "theory_prediction_compiler_summary": theory_prediction_compiler_summary,
             "literature_ingest_policy_summary": literature_ingest_policy_summary,
+            "ai_research_workflow_summary": ai_research_workflow_summary,
             "experiment_execution_loop_summary": experiment_execution_loop_summary,
             "discipline_adapter_summary": discipline_adapter_summary,
             "discipline_toolchain_binding_summary": discipline_toolchain_binding_summary,
@@ -2924,6 +3114,7 @@ class ScientificWorkflow:
             "scientific_problem_reframer_summary": scientific_problem_reframer_summary,
             "theory_prediction_compiler_summary": theory_prediction_compiler_summary,
             "literature_ingest_policy_summary": literature_ingest_policy_summary,
+            "ai_research_workflow_summary": ai_research_workflow_summary,
             "run_handoff_contract_summary": run_handoff_contract_summary,
             "discipline_toolchain_binding_summary": discipline_toolchain_binding_summary,
             "experiment_risk_permission_summary": experiment_risk_permission_summary,
@@ -3236,6 +3427,25 @@ class ScientificWorkflow:
             "scientific_problem_reframer_summary": scientific_problem_reframer_summary,
             "theory_prediction_compiler_summary": theory_prediction_compiler_summary,
             "literature_ingest_policy_summary": literature_ingest_policy_summary,
+            "ai_research_workflow_summary": ai_research_workflow_summary,
+            "ai_dataset_profile": ai_research_workflow_summary.get("dataset_profile", {})
+            if isinstance(ai_research_workflow_summary, dict)
+            else {},
+            "ai_contamination_risk_report": ai_research_workflow_summary.get("contamination_risk_report", {})
+            if isinstance(ai_research_workflow_summary, dict)
+            else {},
+            "ai_evaluation_protocol": ai_research_workflow_summary.get("evaluation_protocol", {})
+            if isinstance(ai_research_workflow_summary, dict)
+            else {},
+            "ai_training_recipe": ai_research_workflow_summary.get("training_recipe", {})
+            if isinstance(ai_research_workflow_summary, dict)
+            else {},
+            "ai_ablation_plan": ai_research_workflow_summary.get("ablation_plan", {})
+            if isinstance(ai_research_workflow_summary, dict)
+            else {},
+            "ai_artifact_contract": ai_research_workflow_summary.get("artifact_contract", {})
+            if isinstance(ai_research_workflow_summary, dict)
+            else {},
             "anomaly_surprise_detector_summary": anomaly_surprise_detector_summary,
             "scientific_credit_responsibility_ledger_summary": scientific_credit_responsibility_ledger_summary,
             "mechanism_family_lifecycle_summary": mechanism_family_lifecycle_summary,

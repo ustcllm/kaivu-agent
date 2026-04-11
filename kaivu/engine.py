@@ -57,6 +57,21 @@ class ScientificAgent:
         collaboration_context = collaboration_context or {}
         self.runtime_event_stream = collaboration_context.get("_runtime_event_stream")
         self.runtime_event_context = collaboration_context
+        self.state.session_meta.update(
+            {
+                key: value
+                for key, value in collaboration_context.items()
+                if key
+                in {
+                    "discipline",
+                    "primary_discipline",
+                    "project_id",
+                    "group_id",
+                    "user_id",
+                    "topic",
+                }
+            }
+        )
         query_memory = self.memory_manager.build_query_memory_context(
             user_prompt,
             user_id=collaboration_context.get("user_id"),

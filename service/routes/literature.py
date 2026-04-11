@@ -19,6 +19,10 @@ async def ingest_literature_source(
         title=payload.title,
         content=payload.content,
         filename=payload.filename,
+        discipline=payload.discipline,
+        user_id=payload.user_id,
+        project_id=payload.project_id,
+        group_id=payload.group_id,
         target_scope=payload.target_scope,
         user_mode=payload.user_mode,
         impact_level=payload.impact_level,
@@ -35,18 +39,37 @@ async def query_literature_wiki(
     query: str,
     limit: int = 10,
     sections: str = "",
+    discipline: str = "",
+    user_id: str = "",
+    project_id: str = "",
+    group_id: str = "",
 ) -> LiteratureQueryResponse:
     runtime = request.app.state.workflow_runtime
     result = runtime.query_literature_wiki(
         query=query,
         limit=max(1, min(limit, 50)),
         sections=[item.strip() for item in sections.split(",") if item.strip()] if sections else None,
+        discipline=discipline,
+        user_id=user_id,
+        project_id=project_id,
+        group_id=group_id,
     )
     return LiteratureQueryResponse(**result)
 
 
 @router.post("/lint", response_model=LiteratureLintResponse)
-async def lint_literature_workspace(request: Request) -> LiteratureLintResponse:
+async def lint_literature_workspace(
+    request: Request,
+    discipline: str = "",
+    user_id: str = "",
+    project_id: str = "",
+    group_id: str = "",
+) -> LiteratureLintResponse:
     runtime = request.app.state.workflow_runtime
-    result = runtime.lint_literature_workspace()
+    result = runtime.lint_literature_workspace(
+        discipline=discipline,
+        user_id=user_id,
+        project_id=project_id,
+        group_id=group_id,
+    )
     return LiteratureLintResponse(**result)

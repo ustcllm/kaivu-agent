@@ -109,3 +109,126 @@ def _is_within(path: Path, root: Path) -> bool:
         return True
     except ValueError:
         return False
+
+
+@dataclass(slots=True)
+class ResearchWorkspaceLayout:
+    root: str
+    discipline: str = "general_science"
+    project_id: str = "default-project"
+    group_id: str = ""
+    user_id: str = ""
+    layout_version: str = "discipline_project_v1"
+
+    @classmethod
+    def for_context(
+        cls,
+        root: str | Path,
+        *,
+        discipline: str = "",
+        project_id: str = "",
+        group_id: str = "",
+        user_id: str = "",
+    ) -> "ResearchWorkspaceLayout":
+        return cls(
+            root=str(Path(root).resolve()),
+            discipline=_slugify(discipline or "general_science"),
+            project_id=_slugify(project_id or "default-project"),
+            group_id=_slugify(group_id or ""),
+            user_id=_slugify(user_id or ""),
+        )
+
+    @property
+    def base(self) -> Path:
+        return Path(self.root).resolve()
+
+    @property
+    def namespace_parts(self) -> list[str]:
+        parts = ["disciplines", self.discipline, "projects", self.project_id]
+        if self.group_id:
+            parts.extend(["groups", self.group_id])
+        return parts
+
+    @property
+    def namespace_path(self) -> Path:
+        path = self.base
+        for part in self.namespace_parts:
+            path = path / part
+        return path
+
+    @property
+    def state_root(self) -> Path:
+        return self.base / ".state" / self.namespace_path.relative_to(self.base)
+
+    @property
+    def memory_root(self) -> Path:
+        return self.base / "memory" / self.namespace_path.relative_to(self.base)
+
+    @property
+    def literature_root(self) -> Path:
+        return self.base / "literature" / self.namespace_path.relative_to(self.base)
+
+    @property
+    def artifact_root(self) -> Path:
+        return self.base / "artifacts" / self.namespace_path.relative_to(self.base)
+
+    @property
+    def reports_root(self) -> Path:
+        return self.base / "reports" / self.namespace_path.relative_to(self.base)
+
+    @property
+    def test_tmp_root(self) -> Path:
+        return self.base / "test_artifacts" / "tmp" / self.namespace_path.relative_to(self.base)
+
+    def ensure(self) -> None:
+        for path in [
+            self.state_root,
+            self.memory_root,
+            self.literature_root,
+            self.artifact_root,
+            self.reports_root,
+            self.test_tmp_root,
+        ]:
+            path.mkdir(parents=True, exist_ok=True)
+
+    def to_dict(self) -> dict[str, Any]:
+        return {
+            "layout_version": self.layout_version,
+            "root": self.root,
+            "discipline": self.discipline,
+            "project_id": self.project_id,
+            "group_id": self.group_id,
+            "user_id": self.user_id,
+            "state_root": str(self.state_root),
+            "memory_root": str(self.memory_root),
+            "literature_root": str(self.literature_root),
+            "artifact_root": str(self.artifact_root),
+            "reports_root": str(self.reports_root),
+            "test_tmp_root": str(self.test_tmp_root),
+            "legacy_roots": {
+                "state": str(self.base / ".state"),
+                "memory": str(self.base / "memory"),
+                "literature": str(self.base / "literature"),
+                "reports": str(self.base / "reports"),
+                "artifacts": str(self.base / "artifacts"),
+            },
+        }
+
+
+def build_research_workspace_layout_summary(layout: ResearchWorkspaceLayout) -> dict[str, Any]:
+    data = layout.to_dict()
+    return {
+        **data,
+        "partition_policy": "discipline/project/group scoped runtime assets",
+        "shared_assets_policy": (
+            "Global roots remain readable for compatibility, but new scoped runtime "
+            "state should write under discipline/project namespace roots."
+        ),
+    }
+
+
+def _slugify(value: str) -> str:
+    safe = "".join(ch.lower() if ch.isalnum() else "-" for ch in str(value).strip())
+    while "--" in safe:
+        safe = safe.replace("--", "-")
+    return safe.strip("-")

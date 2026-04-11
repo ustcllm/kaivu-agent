@@ -197,6 +197,11 @@ def _adapter_specs() -> list[ExecutionAdapterSpec]:
                 "discriminative_experiment",
                 "control_or_ablation",
                 "reproducibility_check",
+                "ai_baseline",
+                "ai_ablation",
+                "ai_leakage_audit",
+                "ai_protocol_repair",
+                "ai_research_planning",
             ],
             required_inputs=["approved protocol", "frozen dataset split", "compute budget", "environment snapshot"],
             produced_artifacts=["config.json", "metrics.json", "model_checkpoint_ref", "seed_report"],
@@ -289,6 +294,14 @@ def _execution_mode(experiment_type: str, discipline: str) -> str:
             "physics": "instrument_parameter_sweep",
             "mathematics": "bounded_search",
         }.get(discipline, "parameter_sweep")
+    if discipline == "artificial_intelligence" and experiment_type in {
+        "ai_baseline",
+        "ai_ablation",
+        "ai_leakage_audit",
+        "ai_protocol_repair",
+        "ai_research_planning",
+    }:
+        return "single_or_batched_experiment_run"
     if experiment_type in {"evidence_quality_repair", "evidence_resolution"}:
         return "review_workflow"
     return "single_or_batched_experiment_run"

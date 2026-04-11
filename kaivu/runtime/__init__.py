@@ -8,7 +8,12 @@ from .memory_provider import (
 )
 from .session import RuntimeMessage, RuntimeSession
 from .trajectory import RuntimeTrajectory, TrajectoryStore, build_scientific_replay_case
-from .workspace import WorkspaceBoundary, build_workspace_boundary_summary
+from .workspace import (
+    ResearchWorkspaceLayout,
+    WorkspaceBoundary,
+    build_research_workspace_layout_summary,
+    build_workspace_boundary_summary,
+)
 from .workflow_harness import ScientificRuntimeHarness, WorkflowHarnessRun
 
 __all__ = [
@@ -27,7 +32,9 @@ __all__ = [
     "ScopedMarkdownMemoryProvider",
     "TrajectoryStore",
     "WorkflowHarnessRun",
+    "ResearchWorkspaceLayout",
     "build_scientific_replay_case",
+    "build_research_workspace_layout_summary",
     "WorkspaceBoundary",
     "build_runtime_manifest_summary",
     "build_workspace_boundary_summary",

@@ -38,6 +38,7 @@ async def submit_run_handoff(
             claim_graph=payload.claim_graph,
             write_memory=payload.write_memory,
             write_events=payload.write_events,
+            discipline=payload.discipline,
             user_id=payload.user_id,
             project_id=payload.project_id,
             group_id=payload.group_id,
@@ -53,6 +54,7 @@ async def submit_run_handoff(
 @router.get("/specifications", response_model=ExperimentRecordListResponse)
 async def list_experiment_specifications(
     request: Request,
+    discipline: str = "",
     user_id: str = "",
     project_id: str = "",
     group_id: str = "",
@@ -61,6 +63,7 @@ async def list_experiment_specifications(
     runtime = request.app.state.workflow_runtime
     return ExperimentRecordListResponse(
         results=runtime.list_experiment_specifications(
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -93,6 +96,7 @@ async def create_experiment_specification(
 async def get_experiment_specification(
     experiment_id: str,
     request: Request,
+    discipline: str = "",
     user_id: str = "",
     project_id: str = "",
     group_id: str = "",
@@ -101,6 +105,7 @@ async def get_experiment_specification(
     runtime = request.app.state.workflow_runtime
     record = runtime.get_experiment_specification(
         experiment_id,
+        discipline=discipline,
         user_id=user_id,
         project_id=project_id,
         group_id=group_id,
@@ -121,6 +126,7 @@ async def freeze_experiment_specification(
         return runtime.freeze_experiment_specification(
             experiment_id=payload.experiment_id,
             reason=payload.reason,
+            discipline=payload.discipline,
             user_id=payload.user_id,
             project_id=payload.project_id,
             group_id=payload.group_id,
@@ -143,6 +149,7 @@ async def unfreeze_experiment_specification(
     try:
         return runtime.unfreeze_experiment_specification(
             experiment_id=payload.experiment_id,
+            discipline=payload.discipline,
             user_id=payload.user_id,
             project_id=payload.project_id,
             group_id=payload.group_id,
@@ -166,6 +173,7 @@ async def retire_experiment_specification(
         return runtime.retire_experiment_specification(
             experiment_id=payload.experiment_id,
             reason=payload.reason,
+            discipline=payload.discipline,
             user_id=payload.user_id,
             project_id=payload.project_id,
             group_id=payload.group_id,
@@ -182,6 +190,7 @@ async def retire_experiment_specification(
 @router.get("/protocols", response_model=ExperimentRecordListResponse)
 async def list_experimental_protocols(
     request: Request,
+    discipline: str = "",
     user_id: str = "",
     project_id: str = "",
     group_id: str = "",
@@ -191,6 +200,7 @@ async def list_experimental_protocols(
     runtime = request.app.state.workflow_runtime
     return ExperimentRecordListResponse(
         results=runtime.list_experimental_protocols(
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -224,6 +234,7 @@ async def create_experimental_protocol(
 async def get_experimental_protocol(
     protocol_id: str,
     request: Request,
+    discipline: str = "",
     user_id: str = "",
     project_id: str = "",
     group_id: str = "",
@@ -232,6 +243,7 @@ async def get_experimental_protocol(
     runtime = request.app.state.workflow_runtime
     record = runtime.get_experimental_protocol(
         protocol_id,
+        discipline=discipline,
         user_id=user_id,
         project_id=project_id,
         group_id=group_id,
@@ -252,6 +264,7 @@ async def freeze_experimental_protocol(
         return runtime.freeze_experimental_protocol(
             protocol_id=payload.protocol_id,
             reason=payload.reason,
+            discipline=payload.discipline,
             user_id=payload.user_id,
             project_id=payload.project_id,
             group_id=payload.group_id,
@@ -274,6 +287,7 @@ async def unfreeze_experimental_protocol(
     try:
         return runtime.unfreeze_experimental_protocol(
             protocol_id=payload.protocol_id,
+            discipline=payload.discipline,
             user_id=payload.user_id,
             project_id=payload.project_id,
             group_id=payload.group_id,
@@ -307,6 +321,7 @@ async def amend_experimental_protocol(
                 "defer_reasons": payload.defer_reasons,
                 "adjudication_questions": payload.adjudication_questions,
             },
+            discipline=payload.discipline,
             user_id=payload.user_id,
             project_id=payload.project_id,
             group_id=payload.group_id,
@@ -323,6 +338,7 @@ async def amend_experimental_protocol(
 @router.get("/runs", response_model=ExperimentRecordListResponse)
 async def list_experiment_runs(
     request: Request,
+    discipline: str = "",
     user_id: str = "",
     project_id: str = "",
     group_id: str = "",
@@ -332,6 +348,7 @@ async def list_experiment_runs(
     runtime = request.app.state.workflow_runtime
     return ExperimentRecordListResponse(
         results=runtime.list_experiment_runs(
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -365,6 +382,7 @@ async def create_experiment_run(
 async def get_experiment_run(
     run_id: str,
     request: Request,
+    discipline: str = "",
     user_id: str = "",
     project_id: str = "",
     group_id: str = "",
@@ -373,6 +391,7 @@ async def get_experiment_run(
     runtime = request.app.state.workflow_runtime
     record = runtime.get_experiment_run_record(
         run_id,
+        discipline=discipline,
         user_id=user_id,
         project_id=project_id,
         group_id=group_id,
@@ -393,6 +412,7 @@ async def retire_experiment_run(
         return runtime.retire_experiment_run(
             run_id=payload.run_id,
             reason=payload.reason,
+            discipline=payload.discipline,
             user_id=payload.user_id,
             project_id=payload.project_id,
             group_id=payload.group_id,
@@ -418,6 +438,7 @@ async def approve_experiment_run(
             approved_by=payload.approved_by,
             approval_note=payload.approval_note,
             approval_status=payload.approval_status,
+            discipline=payload.discipline,
             user_id=payload.user_id,
             project_id=payload.project_id,
             group_id=payload.group_id,
@@ -435,6 +456,7 @@ async def approve_experiment_run(
 async def get_experiment_lineage(
     experiment_id: str,
     request: Request,
+    discipline: str = "",
     user_id: str = "",
     project_id: str = "",
     group_id: str = "",
@@ -443,6 +465,7 @@ async def get_experiment_lineage(
     runtime = request.app.state.workflow_runtime
     return runtime.get_experiment_lineage(
         experiment_id=experiment_id,
+        discipline=discipline,
         user_id=user_id,
         project_id=project_id,
         group_id=group_id,
@@ -453,6 +476,7 @@ async def get_experiment_lineage(
 @router.get("/quality-control-reviews", response_model=ExperimentRecordListResponse)
 async def list_quality_control_reviews(
     request: Request,
+    discipline: str = "",
     user_id: str = "",
     project_id: str = "",
     group_id: str = "",
@@ -462,6 +486,7 @@ async def list_quality_control_reviews(
     runtime = request.app.state.workflow_runtime
     return ExperimentRecordListResponse(
         results=runtime.list_quality_control_reviews(
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -495,6 +520,7 @@ async def create_quality_control_review(
 async def get_quality_control_review(
     review_id: str,
     request: Request,
+    discipline: str = "",
     user_id: str = "",
     project_id: str = "",
     group_id: str = "",
@@ -503,6 +529,7 @@ async def get_quality_control_review(
     runtime = request.app.state.workflow_runtime
     record = runtime.get_quality_control_review_record(
         review_id,
+        discipline=discipline,
         user_id=user_id,
         project_id=project_id,
         group_id=group_id,
@@ -516,6 +543,7 @@ async def get_quality_control_review(
 @router.get("/interpretations", response_model=ExperimentRecordListResponse)
 async def list_interpretation_records(
     request: Request,
+    discipline: str = "",
     user_id: str = "",
     project_id: str = "",
     group_id: str = "",
@@ -525,6 +553,7 @@ async def list_interpretation_records(
     runtime = request.app.state.workflow_runtime
     return ExperimentRecordListResponse(
         results=runtime.list_interpretation_records(
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -558,6 +587,7 @@ async def create_interpretation_record(
 async def get_interpretation_record(
     interpretation_id: str,
     request: Request,
+    discipline: str = "",
     user_id: str = "",
     project_id: str = "",
     group_id: str = "",
@@ -566,6 +596,7 @@ async def get_interpretation_record(
     runtime = request.app.state.workflow_runtime
     record = runtime.get_interpretation_record(
         interpretation_id,
+        discipline=discipline,
         user_id=user_id,
         project_id=project_id,
         group_id=group_id,
@@ -580,9 +611,19 @@ async def get_interpretation_record(
 async def get_run_evaluation_signals(
     run_id: str,
     request: Request,
+    discipline: str = "",
+    project_id: str = "",
+    group_id: str = "",
+    user_id: str = "",
 ) -> EvaluationSignalResponse:
     runtime = request.app.state.workflow_runtime
-    evaluation_record = runtime.get_evaluation_record(run_id)
+    evaluation_record = runtime.get_evaluation_record(
+        run_id,
+        discipline=discipline,
+        project_id=project_id,
+        group_id=group_id,
+        user_id=user_id,
+    )
     if evaluation_record is None:
         record = runtime._runs.get(run_id)
         if record is None or record.result is None:
@@ -631,10 +672,19 @@ async def get_run_evaluation_signals(
 @router.get("/evaluation-history", response_model=EvaluationHistoryResponse)
 async def get_evaluation_history(
     request: Request,
+    discipline: str = "",
     project_id: str = "",
+    group_id: str = "",
+    user_id: str = "",
     topic: str = "",
 ) -> EvaluationHistoryResponse:
     runtime = request.app.state.workflow_runtime
     return EvaluationHistoryResponse(
-        results=runtime.list_evaluation_records(project_id=project_id, topic=topic)
+        results=runtime.list_evaluation_records(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+            topic=topic,
+        )
     )

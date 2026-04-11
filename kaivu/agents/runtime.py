@@ -50,12 +50,20 @@ class SubagentRuntime:
         cwd: str | Path,
         permission_policy: PermissionPolicy | None = None,
         memory_manager: MemoryManager | None = None,
+        memory_root: str | Path | None = None,
+        state_root: str | Path | None = None,
     ) -> None:
         self.cwd = Path(cwd).resolve()
+        self.memory_root = Path(memory_root).resolve() if memory_root else None
+        self.state_root = Path(state_root).resolve() if state_root else self.cwd / ".state"
         self.permission_policy = permission_policy or PermissionPolicy()
-        self.memory_manager = memory_manager or MemoryManager(self.cwd)
+        self.memory_manager = memory_manager or MemoryManager(
+            self.cwd,
+            memory_root=self.memory_root,
+            state_root=self.state_root,
+        )
         self.prompt_builder = PromptBuilder()
-        self.manifest_store = RuntimeManifestStore(self.cwd / ".state" / "runtime_manifests")
+        self.manifest_store = RuntimeManifestStore(self.state_root / "runtime_manifests")
 
     async def run_subagent(self, spec: SubagentSpec) -> SubagentResult:
         config = spec.config or ScientificAgentConfig(
@@ -79,6 +87,8 @@ class SubagentRuntime:
         agent_memory = MemoryManager(
             self.cwd,
             agent_namespace=config.memory_namespace or spec.memory_namespace or spec.name,
+            memory_root=self.memory_root,
+            state_root=self.state_root,
         )
         config_prompt = render_agent_config_prompt(config)
         prompt = self.prompt_builder.build(

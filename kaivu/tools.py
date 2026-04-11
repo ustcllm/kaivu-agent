@@ -15,6 +15,7 @@ from .graph import ResearchGraphRegistry
 from .literature_policy import decide_literature_ingest_policy, render_literature_ingest_digest
 from .memory import MemoryManager
 from .state import AgentState
+from .runtime.workspace import ResearchWorkspaceLayout
 
 
 @dataclass(slots=True)
@@ -748,7 +749,7 @@ class IngestLiteratureSourceTool(Tool):
             "web": "web",
             "article": "web",
         }.get(source_type, "web")
-        literature_root = context.state.cwd / "literature"
+        literature_root = _research_workspace_layout(context).literature_root
         safe_name = filename or f"{_slugify_name(title)}.md"
         policy = decide_literature_ingest_policy(
             source_type=source_type,
@@ -839,7 +840,7 @@ class QueryLiteratureWikiTool(Tool):
             for item in arguments.get("sections", [])
             if str(item).strip()
         ]
-        wiki_root = context.state.cwd / "literature" / "wiki"
+        wiki_root = _research_workspace_layout(context).literature_root / "wiki"
         section_dirs = requested_sections or [
             "papers",
             "claims",
@@ -888,7 +889,7 @@ class LintLiteratureWorkspaceTool(Tool):
     }
 
     async def call(self, arguments: dict[str, Any], context: ToolContext) -> dict[str, Any]:
-        literature_root = context.state.cwd / "literature"
+        literature_root = _research_workspace_layout(context).literature_root
         wiki_root = literature_root / "wiki"
         findings: list[str] = []
         index_path = wiki_root / "index.md"
@@ -940,4 +941,17 @@ def _first_bullet(text: str) -> str:
         if stripped.startswith("- ") and len(stripped) > 2:
             return stripped[2:180]
     return ""
+
+
+def _research_workspace_layout(context: ToolContext) -> ResearchWorkspaceLayout:
+    meta = context.state.session_meta if isinstance(context.state.session_meta, dict) else {}
+    layout = ResearchWorkspaceLayout.for_context(
+        context.state.cwd,
+        discipline=str(meta.get("discipline", "") or meta.get("primary_discipline", "")).strip(),
+        project_id=str(meta.get("project_id", "")).strip(),
+        group_id=str(meta.get("group_id", "")).strip(),
+        user_id=str(meta.get("user_id", "")).strip(),
+    )
+    layout.ensure()
+    return layout
 

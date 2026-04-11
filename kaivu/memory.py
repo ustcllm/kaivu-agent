@@ -70,10 +70,18 @@ class MemoryRecord:
 
 
 class MemoryManager:
-    def __init__(self, root: str | Path, *, agent_namespace: str | None = None) -> None:
+    def __init__(
+        self,
+        root: str | Path,
+        *,
+        agent_namespace: str | None = None,
+        memory_root: str | Path | None = None,
+        state_root: str | Path | None = None,
+    ) -> None:
         self.root = Path(root).resolve()
-        self.shared_memory_dir = self.root / "memory"
-        self.graph_registry = ResearchGraphRegistry(self.root / ".state" / "graph")
+        self.shared_memory_dir = Path(memory_root).resolve() if memory_root else self.root / "memory"
+        self.state_root = Path(state_root).resolve() if state_root else self.root / ".state"
+        self.graph_registry = ResearchGraphRegistry(self.state_root / "graph")
         self._graph_context_cache: dict[str, dict[str, Any]] = {}
         self.agent_namespace = self._slugify_agent_namespace(agent_namespace) or "default"
         self.agent_memory_dir = self.shared_memory_dir / "agents" / self.agent_namespace

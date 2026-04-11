@@ -33,6 +33,7 @@ from kaivu import (
     PythonExecTool,
     ReadFileTool,
     ReadTableTool,
+    ResearchWorkspaceLayout,
     ResolveCitationTool,
     ReviewMemoryTool,
     SaveMemoryTool,
@@ -55,6 +56,7 @@ class RunRecord:
     run_id: str
     topic: str
     status: str
+    discipline: str = ""
     user_id: str = ""
     project_id: str = ""
     group_id: str = ""
@@ -107,17 +109,142 @@ class WorkflowRuntime:
         self._runtime_manifest_store = RuntimeManifestStore(self.root / ".state" / "runtime_manifests")
         self._event_ledger = ResearchEventLedger(self.root / ".state" / "events")
 
-    def list_research_programs(self, *, project_id: str = "", topic: str = "") -> list[dict[str, Any]]:
-        return self._research_program_registry.load_programs(project_id=project_id, topic=topic)
+    def _layout_for_scope(
+        self,
+        *,
+        discipline: str = "",
+        project_id: str = "",
+        group_id: str = "",
+        user_id: str = "",
+    ) -> ResearchWorkspaceLayout:
+        layout = ResearchWorkspaceLayout.for_context(
+            self.root,
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        )
+        layout.ensure()
+        return layout
 
-    def latest_research_program(self, *, project_id: str = "", topic: str = "") -> dict[str, Any] | None:
-        return self._research_program_registry.latest_program(project_id=project_id, topic=topic)
+    def _memory_manager_for_scope(
+        self,
+        *,
+        discipline: str = "",
+        project_id: str = "",
+        group_id: str = "",
+        user_id: str = "",
+    ) -> MemoryManager:
+        layout = self._layout_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        )
+        return MemoryManager(
+            self.root,
+            memory_root=layout.memory_root,
+            state_root=layout.state_root,
+        )
 
-    def list_runtime_manifests(self, *, limit: int = 50) -> list[dict[str, Any]]:
-        return self._runtime_manifest_store.list(limit=limit)
+    def _event_ledger_for_scope(
+        self,
+        *,
+        discipline: str = "",
+        project_id: str = "",
+        group_id: str = "",
+        user_id: str = "",
+    ) -> ResearchEventLedger:
+        layout = self._layout_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        )
+        return ResearchEventLedger(layout.state_root / "events")
 
-    def latest_runtime_manifest(self) -> dict[str, Any] | None:
-        return self._runtime_manifest_store.latest()
+    def _experiment_registry_for_scope(
+        self,
+        *,
+        discipline: str = "",
+        project_id: str = "",
+        group_id: str = "",
+        user_id: str = "",
+    ) -> ExperimentRegistry:
+        layout = self._layout_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        )
+        return ExperimentRegistry(layout.state_root / "service" / "experiments")
+
+    def list_research_programs(
+        self,
+        *,
+        discipline: str = "",
+        project_id: str = "",
+        topic: str = "",
+        group_id: str = "",
+        user_id: str = "",
+    ) -> list[dict[str, Any]]:
+        layout = self._layout_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        )
+        return ResearchProgramRegistry(layout.state_root / "programs").load_programs(project_id=project_id, topic=topic)
+
+    def latest_research_program(
+        self,
+        *,
+        discipline: str = "",
+        project_id: str = "",
+        topic: str = "",
+        group_id: str = "",
+        user_id: str = "",
+    ) -> dict[str, Any] | None:
+        layout = self._layout_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        )
+        return ResearchProgramRegistry(layout.state_root / "programs").latest_program(project_id=project_id, topic=topic)
+
+    def list_runtime_manifests(
+        self,
+        *,
+        limit: int = 50,
+        discipline: str = "",
+        project_id: str = "",
+        group_id: str = "",
+        user_id: str = "",
+    ) -> list[dict[str, Any]]:
+        layout = self._layout_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        )
+        return RuntimeManifestStore(layout.state_root / "runtime_manifests").list(limit=limit)
+
+    def latest_runtime_manifest(
+        self,
+        *,
+        discipline: str = "",
+        project_id: str = "",
+        group_id: str = "",
+        user_id: str = "",
+    ) -> dict[str, Any] | None:
+        layout = self._layout_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        )
+        return RuntimeManifestStore(layout.state_root / "runtime_manifests").latest()
 
     @staticmethod
     def _allowed_run_status_transitions() -> dict[str, set[str]]:
@@ -131,8 +258,13 @@ class WorkflowRuntime:
             "archived": {"archived"},
         }
 
-    def _protocol_has_newer_amendment(self, protocol_id: str) -> bool:
-        protocols = self._experiment_registry.load_collection("experimental_protocols")
+    def _protocol_has_newer_amendment(
+        self,
+        protocol_id: str,
+        *,
+        registry: ExperimentRegistry | None = None,
+    ) -> bool:
+        protocols = (registry or self._experiment_registry).load_collection("experimental_protocols")
         for item in protocols:
             if not isinstance(item, dict):
                 continue
@@ -176,6 +308,8 @@ class WorkflowRuntime:
         self,
         payload: dict[str, Any],
         existing: dict[str, Any] | None,
+        *,
+        registry: ExperimentRegistry | None = None,
     ) -> None:
         run_id = str(payload.get("run_id", "")).strip()
         protocol_id = str(payload.get("protocol_id", "")).strip()
@@ -188,7 +322,7 @@ class WorkflowRuntime:
             allowed = self._allowed_run_status_transitions().get(previous, {previous})
             if status not in allowed:
                 raise ValueError(f"Invalid run status transition: {previous} -> {status}")
-        if self._protocol_has_newer_amendment(protocol_id) and existing is None:
+        if self._protocol_has_newer_amendment(protocol_id, registry=registry) and existing is None:
             raise ValueError("Cannot create a new run from a superseded protocol; amend or use the latest protocol version")
         if status in {"running", "completed", "quality_control_failed", "analyzed"} and approval_status != "approved":
             raise ValueError("Run must be approved before it can move beyond planned status")
@@ -415,8 +549,11 @@ class WorkflowRuntime:
     def query_typed_research_graph(
         self,
         *,
+        discipline: str = "",
         project_id: str,
         topic: str = "",
+        group_id: str = "",
+        user_id: str = "",
         node_type: str = "",
         relation: str = "",
         search: str = "",
@@ -426,7 +563,13 @@ class WorkflowRuntime:
         specialist_name: str = "",
         include_consulted_only: bool = False,
     ) -> dict[str, Any]:
-        return self._research_graph_registry.query(
+        layout = self._layout_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        )
+        return ResearchGraphRegistry(layout.state_root / "graph").query(
             project_id=project_id,
             topic=topic,
             node_type=node_type,
@@ -442,13 +585,22 @@ class WorkflowRuntime:
     def list_research_events(
         self,
         *,
+        discipline: str = "",
         project_id: str = "",
+        group_id: str = "",
+        user_id: str = "",
         topic: str = "",
         event_type: str = "",
         limit: int = 100,
     ) -> dict[str, Any]:
+        ledger = self._event_ledger_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        )
         return {
-            "results": self._event_ledger.load(
+            "results": ledger.load(
                 project_id=project_id,
                 topic=topic,
                 event_type=event_type,
@@ -459,10 +611,19 @@ class WorkflowRuntime:
     def summarize_research_events(
         self,
         *,
+        discipline: str = "",
         project_id: str = "",
+        group_id: str = "",
+        user_id: str = "",
         topic: str = "",
     ) -> dict[str, Any]:
-        return self._event_ledger.summarize(project_id=project_id, topic=topic)
+        ledger = self._event_ledger_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        )
+        return ledger.summarize(project_id=project_id, topic=topic)
 
     def ingest_literature_source(
         self,
@@ -471,6 +632,10 @@ class WorkflowRuntime:
         title: str,
         content: str,
         filename: str | None = None,
+        discipline: str = "",
+        user_id: str = "",
+        project_id: str = "",
+        group_id: str = "",
         target_scope: str = "project",
         user_mode: str = "auto",
         impact_level: str = "medium",
@@ -486,7 +651,12 @@ class WorkflowRuntime:
             "web": "web",
             "article": "web",
         }.get(source_type.strip().lower(), "web")
-        literature_root = self.root / "literature"
+        literature_root = self._layout_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        ).literature_root
         safe_name = filename or f"{self._slugify(title)}.md"
         policy = decide_literature_ingest_policy(
             source_type=source_type,
@@ -557,8 +727,17 @@ class WorkflowRuntime:
         query: str,
         limit: int = 10,
         sections: list[str] | None = None,
+        discipline: str = "",
+        user_id: str = "",
+        project_id: str = "",
+        group_id: str = "",
     ) -> dict[str, Any]:
-        wiki_root = self.root / "literature" / "wiki"
+        wiki_root = self._layout_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        ).literature_root / "wiki"
         wanted_sections = sections or [
             "papers",
             "concepts",
@@ -593,8 +772,20 @@ class WorkflowRuntime:
         results.sort(key=lambda item: (-int(item.get("score", 0)), str(item.get("title", ""))))
         return {"results": results[: max(1, min(limit, 50))]}
 
-    def lint_literature_workspace(self) -> dict[str, Any]:
-        literature_root = self.root / "literature"
+    def lint_literature_workspace(
+        self,
+        *,
+        discipline: str = "",
+        user_id: str = "",
+        project_id: str = "",
+        group_id: str = "",
+    ) -> dict[str, Any]:
+        literature_root = self._layout_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        ).literature_root
         wiki_root = literature_root / "wiki"
         findings: list[str] = []
         index_path = wiki_root / "index.md"
@@ -671,13 +862,20 @@ class WorkflowRuntime:
         self,
         collection: str,
         *,
+        discipline: str = "",
         user_id: str = "",
         project_id: str = "",
         group_id: str = "",
         group_role: str = "",
         experiment_id: str = "",
     ) -> list[dict[str, Any]]:
-        items = self._experiment_registry.load_collection(collection)
+        registry = self._experiment_registry_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        )
+        items = registry.load_collection(collection)
         results: list[dict[str, Any]] = []
         for item in items:
             if experiment_id and str(item.get("experiment_id", "")) != experiment_id:
@@ -698,12 +896,19 @@ class WorkflowRuntime:
         collection: str,
         identifier: str,
         *,
+        discipline: str = "",
         user_id: str = "",
         project_id: str = "",
         group_id: str = "",
         group_role: str = "",
     ) -> dict[str, Any] | None:
-        item = self._experiment_registry.get_record(collection, identifier)
+        registry = self._experiment_registry_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        )
+        item = registry.get_record(collection, identifier)
         if item is None:
             return None
         if not self._experiment_record_accessible(
@@ -722,6 +927,7 @@ class WorkflowRuntime:
         identifier: str,
         payload: dict[str, Any],
         *,
+        discipline: str = "",
         user_id: str = "",
         project_id: str = "",
         group_id: str = "",
@@ -730,6 +936,7 @@ class WorkflowRuntime:
         scoped = {
             **payload,
             "user_id": user_id,
+            "discipline": discipline or str(payload.get("discipline", "")),
             "project_id": project_id or str(payload.get("project_id", "")),
             "group_id": group_id,
             "group_role": group_role,
@@ -744,20 +951,27 @@ class WorkflowRuntime:
             requester_group_role=group_role,
         ):
             raise PermissionError("Experiment record write denied")
-        existing = self._experiment_registry.get_record(collection, identifier)
+        registry = self._experiment_registry_for_scope(
+            discipline=str(scoped.get("discipline", "")),
+            project_id=str(scoped.get("project_id", "")),
+            group_id=group_id,
+            user_id=user_id,
+        )
+        existing = registry.get_record(collection, identifier)
         if collection == "experiment_specifications":
             self._validate_experiment_specification_payload(scoped, existing)
         elif collection == "experimental_protocols":
             self._validate_experimental_protocol_payload(scoped, existing)
         elif collection == "experiment_runs":
-            self._validate_experiment_run_payload(scoped, existing)
-        self._experiment_registry.save_record(collection, identifier, scoped)
-        saved = self._experiment_registry.get_record(collection, identifier)
+            self._validate_experiment_run_payload(scoped, existing, registry=registry)
+        registry.save_record(collection, identifier, scoped)
+        saved = registry.get_record(collection, identifier)
         return saved or scoped
 
     def list_experiment_specifications(
         self,
         *,
+        discipline: str = "",
         user_id: str = "",
         project_id: str = "",
         group_id: str = "",
@@ -765,6 +979,7 @@ class WorkflowRuntime:
     ) -> list[dict[str, Any]]:
         return self._list_experiment_collection(
             "experiment_specifications",
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -785,6 +1000,7 @@ class WorkflowRuntime:
     def list_experimental_protocols(
         self,
         *,
+        discipline: str = "",
         user_id: str = "",
         project_id: str = "",
         group_id: str = "",
@@ -793,6 +1009,7 @@ class WorkflowRuntime:
     ) -> list[dict[str, Any]]:
         return self._list_experiment_collection(
             "experimental_protocols",
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -816,6 +1033,7 @@ class WorkflowRuntime:
         *,
         source_protocol_id: str,
         payload: dict[str, Any],
+        discipline: str = "",
         user_id: str = "",
         project_id: str = "",
         group_id: str = "",
@@ -823,6 +1041,7 @@ class WorkflowRuntime:
     ) -> dict[str, Any]:
         source = self.get_experimental_protocol(
             source_protocol_id,
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -840,6 +1059,7 @@ class WorkflowRuntime:
         }
         saved = self.save_experimental_protocol(
             amended,
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -851,7 +1071,12 @@ class WorkflowRuntime:
             "freeze_reason": f"superseded by protocol {saved.get('protocol_id', '')}",
             "frozen_at": datetime.now(timezone.utc).isoformat(),
         }
-        self._experiment_registry.save_record(
+        self._experiment_registry_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        ).save_record(
             "experimental_protocols",
             str(source_protocol_id),
             frozen_source,
@@ -863,6 +1088,7 @@ class WorkflowRuntime:
         *,
         experiment_id: str,
         reason: str = "",
+        discipline: str = "",
         user_id: str = "",
         project_id: str = "",
         group_id: str = "",
@@ -872,6 +1098,7 @@ class WorkflowRuntime:
             raise PermissionError("Only curator/admin can freeze experiment specifications")
         record = self.get_experiment_specification(
             experiment_id,
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -885,9 +1112,15 @@ class WorkflowRuntime:
             "freeze_reason": str(reason).strip() or "manual freeze",
             "frozen_at": datetime.now(timezone.utc).isoformat(),
         }
-        self._experiment_registry.save_record("experiment_specifications", experiment_id, updated)
+        self._experiment_registry_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        ).save_record("experiment_specifications", experiment_id, updated)
         return self.get_experiment_specification(
             experiment_id,
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -898,6 +1131,7 @@ class WorkflowRuntime:
         self,
         *,
         experiment_id: str,
+        discipline: str = "",
         user_id: str = "",
         project_id: str = "",
         group_id: str = "",
@@ -907,6 +1141,7 @@ class WorkflowRuntime:
             raise PermissionError("Only curator/admin can unfreeze experiment specifications")
         record = self.get_experiment_specification(
             experiment_id,
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -920,9 +1155,15 @@ class WorkflowRuntime:
             "freeze_reason": "",
             "frozen_at": "",
         }
-        self._experiment_registry.save_record("experiment_specifications", experiment_id, updated)
+        self._experiment_registry_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        ).save_record("experiment_specifications", experiment_id, updated)
         return self.get_experiment_specification(
             experiment_id,
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -934,6 +1175,7 @@ class WorkflowRuntime:
         *,
         experiment_id: str,
         reason: str = "",
+        discipline: str = "",
         user_id: str = "",
         project_id: str = "",
         group_id: str = "",
@@ -943,6 +1185,7 @@ class WorkflowRuntime:
             raise PermissionError("Only curator/admin can retire experiment specifications")
         record = self.get_experiment_specification(
             experiment_id,
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -959,6 +1202,7 @@ class WorkflowRuntime:
         }
         return self.save_experiment_specification(
             updated,
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -970,6 +1214,7 @@ class WorkflowRuntime:
         *,
         protocol_id: str,
         reason: str = "",
+        discipline: str = "",
         user_id: str = "",
         project_id: str = "",
         group_id: str = "",
@@ -979,6 +1224,7 @@ class WorkflowRuntime:
             raise PermissionError("Only curator/admin can freeze experimental protocols")
         record = self.get_experimental_protocol(
             protocol_id,
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -992,9 +1238,15 @@ class WorkflowRuntime:
             "freeze_reason": str(reason).strip() or "manual freeze",
             "frozen_at": datetime.now(timezone.utc).isoformat(),
         }
-        self._experiment_registry.save_record("experimental_protocols", protocol_id, updated)
+        self._experiment_registry_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        ).save_record("experimental_protocols", protocol_id, updated)
         return self.get_experimental_protocol(
             protocol_id,
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -1005,6 +1257,7 @@ class WorkflowRuntime:
         self,
         *,
         protocol_id: str,
+        discipline: str = "",
         user_id: str = "",
         project_id: str = "",
         group_id: str = "",
@@ -1014,6 +1267,7 @@ class WorkflowRuntime:
             raise PermissionError("Only curator/admin can unfreeze experimental protocols")
         record = self.get_experimental_protocol(
             protocol_id,
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -1027,9 +1281,15 @@ class WorkflowRuntime:
             "freeze_reason": "",
             "frozen_at": "",
         }
-        self._experiment_registry.save_record("experimental_protocols", protocol_id, updated)
+        self._experiment_registry_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        ).save_record("experimental_protocols", protocol_id, updated)
         return self.get_experimental_protocol(
             protocol_id,
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -1039,6 +1299,7 @@ class WorkflowRuntime:
     def list_experiment_runs(
         self,
         *,
+        discipline: str = "",
         user_id: str = "",
         project_id: str = "",
         group_id: str = "",
@@ -1047,6 +1308,7 @@ class WorkflowRuntime:
     ) -> list[dict[str, Any]]:
         return self._list_experiment_collection(
             "experiment_runs",
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -1074,6 +1336,7 @@ class WorkflowRuntime:
         claim_graph: dict[str, Any] | None = None,
         write_memory: bool = True,
         write_events: bool = True,
+        discipline: str = "",
         user_id: str = "",
         project_id: str = "",
         group_id: str = "",
@@ -1090,9 +1353,16 @@ class WorkflowRuntime:
             requester_group_role=group_role,
         ):
             raise PermissionError("Run handoff submission denied")
+        layout = self._layout_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        )
+        experiment_registry = ExperimentRegistry(layout.state_root / "service" / "experiments")
         bundle = normalize_run_handoff_payload(contract=contract, payload=payload)
         backpropagation = persist_run_handoff_bundle(
-            registry=self._experiment_registry,
+            registry=experiment_registry,
             bundle=bundle,
         )
         updated_claim_graph = (
@@ -1117,6 +1387,7 @@ class WorkflowRuntime:
                     "kind",
                     payload_for_memory.get("memory_type", "reference"),
                 )
+                payload_for_memory["discipline"] = discipline
                 payload_for_memory["group_role"] = group_role
                 memory_results.append(self.save_memory(payload_for_memory))
         events_written = 0
@@ -1128,10 +1399,10 @@ class WorkflowRuntime:
                 group_id=group_id,
                 backpropagation_record=backpropagation,
             )
-            self._event_ledger.append_many(events)
+            ResearchEventLedger(layout.state_root / "events").append_many(events)
             events_written = len(events)
         registry_summary = load_experiment_backpropagation_summary(
-            registry_root=self._experiments_root
+            registry_root=layout.state_root / "service" / "experiments"
         )
         registry_summary["experiment_id"] = experiment_id
         return {
@@ -1151,6 +1422,7 @@ class WorkflowRuntime:
         approved_by: str,
         approval_note: str = "",
         approval_status: str = "approved",
+        discipline: str = "",
         user_id: str = "",
         project_id: str = "",
         group_id: str = "",
@@ -1160,6 +1432,7 @@ class WorkflowRuntime:
             raise PermissionError("Only curator/admin can approve experiment runs")
         record = self.get_experiment_run_record(
             run_id,
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -1168,7 +1441,15 @@ class WorkflowRuntime:
         if record is None:
             raise FileNotFoundError("Experiment run not found")
         protocol_id = str(record.get("protocol_id", "")).strip()
-        if protocol_id and self._protocol_has_newer_amendment(protocol_id):
+        if protocol_id and self._protocol_has_newer_amendment(
+            protocol_id,
+            registry=self._experiment_registry_for_scope(
+                discipline=discipline,
+                project_id=project_id,
+                group_id=group_id,
+                user_id=user_id,
+            ),
+        ):
             raise ValueError("Cannot approve a run built on a superseded protocol")
         current_status = str(record.get("status", "planned")).strip() or "planned"
         if current_status in {"quality_control_failed", "archived", "analyzed"}:
@@ -1185,6 +1466,7 @@ class WorkflowRuntime:
             updated["status"] = "approved"
         return self.save_experiment_run_record(
             updated,
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -1196,6 +1478,7 @@ class WorkflowRuntime:
         *,
         run_id: str,
         reason: str = "",
+        discipline: str = "",
         user_id: str = "",
         project_id: str = "",
         group_id: str = "",
@@ -1205,6 +1488,7 @@ class WorkflowRuntime:
             raise PermissionError("Only curator/admin can retire experiment runs")
         record = self.get_experiment_run_record(
             run_id,
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -1221,6 +1505,7 @@ class WorkflowRuntime:
         }
         return self.save_experiment_run_record(
             updated,
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -1231,6 +1516,7 @@ class WorkflowRuntime:
         self,
         *,
         experiment_id: str,
+        discipline: str = "",
         user_id: str = "",
         project_id: str = "",
         group_id: str = "",
@@ -1239,6 +1525,7 @@ class WorkflowRuntime:
         specifications = [
             item
             for item in self.list_experiment_specifications(
+                discipline=discipline,
                 user_id=user_id,
                 project_id=project_id,
                 group_id=group_id,
@@ -1247,6 +1534,7 @@ class WorkflowRuntime:
             if str(item.get("experiment_id", "")).strip() == experiment_id
         ]
         protocols = self.list_experimental_protocols(
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -1254,6 +1542,7 @@ class WorkflowRuntime:
             experiment_id=experiment_id,
         )
         runs = self.list_experiment_runs(
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -1286,9 +1575,24 @@ class WorkflowRuntime:
         }
 
     def save_evaluation_record(self, run_id: str, payload: dict[str, Any]) -> dict[str, Any]:
+        discipline = str(payload.get("discipline", "")).strip()
         project_id = str(payload.get("project_id", "")).strip()
+        group_id = str(payload.get("group_id", "")).strip()
+        user_id = str(payload.get("user_id", "")).strip()
         topic = str(payload.get("topic", "")).strip()
-        previous_candidates = self.list_evaluation_records(project_id=project_id, topic=topic)
+        registry = self._experiment_registry_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        )
+        previous_candidates = self.list_evaluation_records(
+            discipline=discipline,
+            project_id=project_id,
+            topic=topic,
+            group_id=group_id,
+            user_id=user_id,
+        )
         previous = previous_candidates[-1] if previous_candidates else None
         enriched = {
             **payload,
@@ -1298,20 +1602,41 @@ class WorkflowRuntime:
                 previous if isinstance(previous, dict) else None,
             ),
         }
-        self._experiment_registry.save_record("evaluation_records", run_id, enriched)
-        saved = self._experiment_registry.get_record("evaluation_records", run_id)
+        registry.save_record("evaluation_records", run_id, enriched)
+        saved = registry.get_record("evaluation_records", run_id)
         return saved or enriched
 
-    def get_evaluation_record(self, run_id: str) -> dict[str, Any] | None:
-        return self._experiment_registry.get_record("evaluation_records", run_id)
+    def get_evaluation_record(
+        self,
+        run_id: str,
+        *,
+        discipline: str = "",
+        project_id: str = "",
+        group_id: str = "",
+        user_id: str = "",
+    ) -> dict[str, Any] | None:
+        return self._experiment_registry_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        ).get_record("evaluation_records", run_id)
 
     def list_evaluation_records(
         self,
         *,
+        discipline: str = "",
         project_id: str = "",
+        group_id: str = "",
+        user_id: str = "",
         topic: str = "",
     ) -> list[dict[str, Any]]:
-        items = self._experiment_registry.load_collection("evaluation_records")
+        items = self._experiment_registry_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        ).load_collection("evaluation_records")
         filtered: list[dict[str, Any]] = []
         for item in items:
             if not isinstance(item, dict):
@@ -1327,12 +1652,21 @@ class WorkflowRuntime:
     def build_evaluation_history_signal(
         self,
         *,
+        discipline: str = "",
         project_id: str,
+        group_id: str = "",
+        user_id: str = "",
         topic: str,
     ) -> dict[str, Any]:
         if not project_id or not topic:
             return {}
-        history = self.list_evaluation_records(project_id=project_id, topic=topic)
+        history = self.list_evaluation_records(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+            topic=topic,
+        )
         if not history:
             return {}
         latest = history[-1]
@@ -1422,6 +1756,7 @@ class WorkflowRuntime:
     def list_quality_control_reviews(
         self,
         *,
+        discipline: str = "",
         user_id: str = "",
         project_id: str = "",
         group_id: str = "",
@@ -1430,6 +1765,7 @@ class WorkflowRuntime:
     ) -> list[dict[str, Any]]:
         return self._list_experiment_collection(
             "quality_control_reviews",
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -1451,6 +1787,7 @@ class WorkflowRuntime:
     def list_interpretation_records(
         self,
         *,
+        discipline: str = "",
         user_id: str = "",
         project_id: str = "",
         group_id: str = "",
@@ -1459,6 +1796,7 @@ class WorkflowRuntime:
     ) -> list[dict[str, Any]]:
         return self._list_experiment_collection(
             "interpretation_records",
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -1639,12 +1977,18 @@ class WorkflowRuntime:
         query: str,
         max_results: int = 5,
         *,
+        discipline: str = "",
         user_id: str | None = None,
         project_id: str | None = None,
         group_id: str | None = None,
         scopes: list[str] | None = None,
     ) -> list[dict[str, Any]]:
-        manager = MemoryManager(self.root)
+        manager = self._memory_manager_for_scope(
+            discipline=discipline,
+            project_id=project_id or "",
+            group_id=group_id or "",
+            user_id=user_id or "",
+        )
         matches = manager.find_relevant_memories(
             query,
             max_memories=max_results,
@@ -1683,6 +2027,7 @@ class WorkflowRuntime:
     def list_memory_proposals(
         self,
         *,
+        discipline: str = "",
         user_id: str = "",
         project_id: str = "",
         group_id: str = "",
@@ -1691,7 +2036,12 @@ class WorkflowRuntime:
         role = self.get_group_role(group_id=group_id, user_id=user_id, claimed_role=group_role)
         if self._role_rank(role) < self._role_rank("curator"):
             return []
-        manager = MemoryManager(self.root)
+        manager = self._memory_manager_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        )
         results: list[dict[str, Any]] = []
         for record in manager.list_memories(user_id=user_id, project_id=project_id, group_id=group_id):
             if not record.needs_review:
@@ -1718,8 +2068,22 @@ class WorkflowRuntime:
             )
         return results
 
-    def get_memory_audit(self, *, filename: str, user_id: str = "", group_id: str = "", group_role: str = "") -> dict[str, Any]:
-        manager = MemoryManager(self.root)
+    def get_memory_audit(
+        self,
+        *,
+        filename: str,
+        discipline: str = "",
+        user_id: str = "",
+        project_id: str = "",
+        group_id: str = "",
+        group_role: str = "",
+    ) -> dict[str, Any]:
+        manager = self._memory_manager_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        )
         record = manager.get_memory_record(filename)
         if record is None:
             return {"filename": filename, "events": []}
@@ -1779,7 +2143,12 @@ class WorkflowRuntime:
         }
 
     def save_memory(self, payload: dict[str, Any]) -> dict[str, Any]:
-        manager = MemoryManager(self.root)
+        manager = self._memory_manager_for_scope(
+            discipline=str(payload.get("discipline", "")),
+            project_id=str(payload.get("project_id", "")),
+            group_id=str(payload.get("group_id", "")),
+            user_id=str(payload.get("user_id", "")),
+        )
         role = self.get_group_role(
             group_id=payload.get("group_id", ""),
             user_id=payload.get("user_id", ""),
@@ -1828,7 +2197,12 @@ class WorkflowRuntime:
         return {"path": str(path), "mode": mode, "message": message}
 
     def review_memory(self, payload: dict[str, Any]) -> bool:
-        manager = MemoryManager(self.root)
+        manager = self._memory_manager_for_scope(
+            discipline=str(payload.get("discipline", "")),
+            project_id=str(payload.get("project_id", "")),
+            group_id=str(payload.get("group_id", "")),
+            user_id=str(payload.get("user_id", "")),
+        )
         record = manager.get_memory_record(payload["filename"])
         if record is None:
             return False
@@ -1853,7 +2227,12 @@ class WorkflowRuntime:
         )
 
     def promote_memory(self, payload: dict[str, Any]) -> dict[str, Any]:
-        manager = MemoryManager(self.root)
+        manager = self._memory_manager_for_scope(
+            discipline=str(payload.get("discipline", "")),
+            project_id=str(payload.get("project_id", "")),
+            group_id=str(payload.get("group_id", "")),
+            user_id=str(payload.get("user_id", "")),
+        )
         record = manager.get_memory_record(payload["filename"])
         if record is None:
             return {"ok": False, "mode": "missing", "message": "Memory file not found."}
@@ -1898,10 +2277,16 @@ class WorkflowRuntime:
         }
 
     def auto_govern_memory(self, payload: dict[str, Any]) -> dict[str, Any]:
-        manager = MemoryManager(self.root)
         user_id = str(payload.get("user_id", "")).strip()
         project_id = str(payload.get("project_id", "")).strip()
         group_id = str(payload.get("group_id", "")).strip()
+        discipline = str(payload.get("discipline", "")).strip()
+        manager = self._memory_manager_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        )
         target_scope = str(payload.get("target_scope", "project")).strip() or "project"
         automation_mode = str(payload.get("automation_mode", "safe")).strip() or "safe"
         max_items = int(payload.get("max_items", 25) or 25)
@@ -2014,7 +2399,12 @@ class WorkflowRuntime:
             dry_run=dry_run,
         )
         if events and not dry_run:
-            self._event_ledger.append_many(events)
+            self._event_ledger_for_scope(
+                discipline=discipline,
+                project_id=project_id,
+                group_id=group_id,
+                user_id=user_id,
+            ).append_many(events)
         return {
             "ok": True,
             "automation_mode": automation_mode,
@@ -2082,7 +2472,12 @@ class WorkflowRuntime:
         return events
 
     def reject_memory_proposal(self, payload: dict[str, Any]) -> dict[str, Any]:
-        manager = MemoryManager(self.root)
+        manager = self._memory_manager_for_scope(
+            discipline=str(payload.get("discipline", "")),
+            project_id=str(payload.get("project_id", "")),
+            group_id=str(payload.get("group_id", "")),
+            user_id=str(payload.get("user_id", "")),
+        )
         record = manager.get_memory_record(payload["filename"])
         if record is None:
             return {"ok": False, "mode": "missing", "message": "Memory file not found."}
@@ -2114,6 +2509,7 @@ class WorkflowRuntime:
         self,
         *,
         result: Any,
+        discipline: str,
         user_id: str,
         project_id: str,
         group_id: str,
@@ -2123,6 +2519,7 @@ class WorkflowRuntime:
         if not isinstance(steps, list):
             return
         identity = {
+            "discipline": discipline,
             "user_id": user_id,
             "project_id": project_id,
             "group_id": group_id,
@@ -2293,6 +2690,7 @@ class WorkflowRuntime:
         topic: str,
         dynamic_routing: bool = True,
         report_path: str | None = None,
+        discipline: str = "",
         user_id: str = "",
         project_id: str = "",
         group_id: str = "",
@@ -2303,6 +2701,7 @@ class WorkflowRuntime:
             run_id=run_id,
             topic=topic,
             status="queued",
+            discipline=discipline,
             user_id=user_id,
             project_id=project_id,
             group_id=group_id,
@@ -2315,6 +2714,7 @@ class WorkflowRuntime:
                 topic=topic,
                 dynamic_routing=dynamic_routing,
                 report_path=report_path,
+                discipline=discipline,
                 user_id=user_id,
                 project_id=project_id,
                 group_id=group_id,
@@ -2331,6 +2731,7 @@ class WorkflowRuntime:
         topic: str,
         dynamic_routing: bool,
         report_path: str | None,
+        discipline: str,
         user_id: str,
         project_id: str,
         group_id: str,
@@ -2344,6 +2745,12 @@ class WorkflowRuntime:
             config_path = self.root / "config" / "agents.json"
             if config_path.exists():
                 model_registry.load_config_file(config_path)
+            layout = self._layout_for_scope(
+                discipline=discipline,
+                project_id=project_id,
+                group_id=group_id,
+                user_id=user_id,
+            )
             workflow = ScientificWorkflow(
                 cwd=self.root,
                 model_name="gpt-5",
@@ -2351,16 +2758,21 @@ class WorkflowRuntime:
                     mode="deny_destructive",
                     allow_tools={"write_file"},
                 ),
-                report_path=report_path or str(self.root / "reports" / f"{run_id}.md"),
+                report_path=report_path or str(layout.reports_root / f"{run_id}.md"),
                 dynamic_routing=dynamic_routing,
                 skill_runtime=skill_runtime,
                 model_registry=model_registry,
                 collaboration_context={
+                    "discipline": discipline,
+                    "primary_discipline": discipline,
                     "user_id": user_id,
                     "project_id": project_id,
                     "group_id": group_id,
                     "evaluation_history_summary": self.build_evaluation_history_signal(
+                        discipline=discipline,
                         project_id=project_id,
+                        group_id=group_id,
+                        user_id=user_id,
                         topic=topic,
                     ),
                 },
@@ -2375,6 +2787,7 @@ class WorkflowRuntime:
             result = harness_run.result
             self._sync_experiment_records_from_workflow_result(
                 result=result,
+                discipline=discipline,
                 user_id=user_id,
                 project_id=project_id,
                 group_id=group_id,
@@ -2384,6 +2797,8 @@ class WorkflowRuntime:
                 run_id,
                 {
                     "run_id": run_id,
+                    "discipline": discipline,
+                    "user_id": user_id,
                     "project_id": project_id,
                     "group_id": group_id,
                     "topic": topic,
@@ -2408,7 +2823,6 @@ class WorkflowRuntime:
             self._tasks.pop(run_id, None)
 
     def _build_tools(self) -> ToolRegistry:
-        MemoryManager(self.root)
         return ToolRegistry(
             [
                 ReadFileTool(),

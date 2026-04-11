@@ -12,6 +12,7 @@ router = APIRouter(prefix="/graph", tags=["graph"])
 async def query_typed_graph(
     request: Request,
     project_id: str,
+    discipline: str = "",
     topic: str = "",
     node_type: str = "",
     relation: str = "",
@@ -37,8 +38,11 @@ async def query_typed_graph(
     ):
         raise HTTPException(status_code=403, detail="Typed graph access denied")
     payload = runtime.query_typed_research_graph(
+        discipline=discipline,
         project_id=project_id,
         topic=topic,
+        group_id=group_id,
+        user_id=user_id,
         node_type=node_type,
         relation=relation,
         search=search,

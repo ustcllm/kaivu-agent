@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from .layered_adapters import build_layered_adapter_summary
+
 
 @dataclass(slots=True)
 class DisciplineAdapterSpec:
@@ -74,9 +76,20 @@ def build_discipline_adapter_summary(
     )
     binding_dicts = [item.to_dict() for item in bindings]
     blocked_count = len([item for item in binding_dicts if item.get("readiness_state") != "ready"])
+    primary_task = _infer_primary_task(
+        experiment_execution_loop_summary=experiment_execution_loop_summary,
+        optimization_adapter_summary=optimization_adapter_summary or {},
+    )
+    layered = build_layered_adapter_summary(
+        discipline=primary,
+        task_type=primary_task,
+        toolchain="default",
+        available_tools=selected.external_targets,
+    )
     return {
         "adapter_id": f"discipline-adapter::{_slugify(project_id or 'workspace')}::{_slugify(topic)}",
         "interface_version": "discipline_adapter",
+        "layered_interface_version": "layered_adapter_v1",
         "topic": topic,
         "project_id": project_id,
         "primary_discipline": primary,
@@ -92,6 +105,7 @@ def build_discipline_adapter_summary(
         ),
         "selected_adapter_id": selected.adapter_id,
         "selected_adapter": selected.to_dict(),
+        "layered_adapter_summary": layered,
         "available_adapter_count": len(specs),
         "available_adapters": [item.to_dict() for item in specs],
         "binding_count": len(binding_dicts),
@@ -493,6 +507,24 @@ def _experiment_type(item: dict[str, Any]) -> str:
     return str(item.get("experiment_type", "")).strip() or "default"
 
 
+def _infer_primary_task(
+    *,
+    experiment_execution_loop_summary: dict[str, Any],
+    optimization_adapter_summary: dict[str, Any],
+) -> str:
+    queue = experiment_execution_loop_summary.get("execution_queue", [])
+    if isinstance(queue, list):
+        for item in queue:
+            if isinstance(item, dict):
+                experiment_type = _experiment_type(item)
+                if experiment_type and experiment_type != "default":
+                    return experiment_type
+    plans = optimization_adapter_summary.get("plans", [])
+    if isinstance(plans, list) and plans:
+        return "parameter_optimization"
+    return "general"
+
+
 def _string_list(value: Any) -> list[str]:
     if not isinstance(value, list):
         return []
@@ -508,4 +540,3 @@ def _slugify(value: str) -> str:
     while "--" in safe:
         safe = safe.replace("--", "-")
     return safe.strip("-") or "discipline-adapter"
-
