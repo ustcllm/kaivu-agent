@@ -1,0 +1,21 @@
+case_id: adversarial_evidence_extrapolation
+priority: P1
+category: evidence_robustness
+split: regression
+tags:
+  - adversarial
+  - evidence_map
+  - boundary_conditions
+task: Detect when evidence is being applied outside its validated conditions.
+inputs:
+  object_types:
+    - claim
+    - evidence
+    - hypothesis
+expected_outputs:
+  - research_program_summary.evidence_map.claim_records
+  - hypothesis_theory_summary.objects
+rubric:
+  - evidence conditions and boundary conditions are recorded
+  - extrapolation risk is high when conditions are missing
+  - hypothesis or report release is constrained by extrapolation risk

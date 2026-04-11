@@ -1,5 +1,5 @@
 ﻿dataset_id: kaivu-kernel-benchmark
-version: 0.2.0
+version: 0.3.0
 task_family: kaivu_kernel
 description: Dataset-style benchmark suite for kaivu kernel capabilities.
 splits:
@@ -12,6 +12,7 @@ metrics:
   - regression_count
   - category_pass_rate
   - provenance_replay_pass_rate
+  - adversarial_case_pass_rate
 governance:
   owners:
     - kaivu_core
@@ -19,4 +20,5 @@ governance:
     - add a case when a kernel capability becomes release-critical
     - keep P0 cases fail-fast
     - preserve old passing cases as regression cases
+    - add adversarial cases for overclaiming, weak evidence, repeated failures, missing controls, and extrapolation risk
 

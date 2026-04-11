@@ -14,7 +14,9 @@ from .routes import (
     graph_router,
     literature_router,
     memory_router,
+    programs_router,
     reports_router,
+    runtime_router,
     threads_router,
     usage_router,
     workflow_router,
@@ -42,10 +44,12 @@ def create_app(root: str | Path | None = None) -> FastAPI:
     app.include_router(collaboration_router)
     app.include_router(experiments_router)
     app.include_router(memory_router)
+    app.include_router(programs_router)
     app.include_router(graph_router)
     app.include_router(events_router)
     app.include_router(literature_router)
     app.include_router(reports_router)
+    app.include_router(runtime_router)
     app.include_router(threads_router)
     app.include_router(usage_router)
     if web_root.exists():

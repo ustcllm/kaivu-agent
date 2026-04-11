@@ -17,6 +17,7 @@ from kaivu import (
     build_backpropagation_events,
     build_backpropagation_memory_items,
     ResearchEventLedger,
+    ResearchProgramRegistry,
     ResearchEvent,
     ResearchGraphRegistry,
     CrossrefSearchTool,
@@ -37,6 +38,7 @@ from kaivu import (
     SaveMemoryTool,
     ScientificWorkflow,
     ScientificRuntimeHarness,
+    RuntimeManifestStore,
     SearchMemoryTool,
     SkillRuntime,
     ToolRegistry,
@@ -101,7 +103,21 @@ class WorkflowRuntime:
         self._memberships = self._load_memberships()
         self._experiment_registry = ExperimentRegistry(self._experiments_root)
         self._research_graph_registry = ResearchGraphRegistry(self.root / ".state" / "graph")
+        self._research_program_registry = ResearchProgramRegistry(self.root / ".state" / "programs")
+        self._runtime_manifest_store = RuntimeManifestStore(self.root / ".state" / "runtime_manifests")
         self._event_ledger = ResearchEventLedger(self.root / ".state" / "events")
+
+    def list_research_programs(self, *, project_id: str = "", topic: str = "") -> list[dict[str, Any]]:
+        return self._research_program_registry.load_programs(project_id=project_id, topic=topic)
+
+    def latest_research_program(self, *, project_id: str = "", topic: str = "") -> dict[str, Any] | None:
+        return self._research_program_registry.latest_program(project_id=project_id, topic=topic)
+
+    def list_runtime_manifests(self, *, limit: int = 50) -> list[dict[str, Any]]:
+        return self._runtime_manifest_store.list(limit=limit)
+
+    def latest_runtime_manifest(self) -> dict[str, Any] | None:
+        return self._runtime_manifest_store.latest()
 
     @staticmethod
     def _allowed_run_status_transitions() -> dict[str, set[str]]:

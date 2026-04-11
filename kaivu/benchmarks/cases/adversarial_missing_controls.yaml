@@ -1,0 +1,20 @@
+case_id: adversarial_missing_controls
+priority: P1
+category: experiment_execution
+split: regression
+tags:
+  - adversarial
+  - quality_control
+  - experiment_design
+task: Prevent experiments without necessary controls from passing execution readiness.
+inputs:
+  object_types:
+    - experiment_candidate
+    - quality_control_review
+expected_outputs:
+  - experiment_execution_loop_summary.blocked_experiments
+  - discipline_adapter_summary.bindings
+rubric:
+  - missing positive or negative controls are flagged
+  - quality gates block execution or require protocol repair
+  - discipline-specific control requirements are preserved

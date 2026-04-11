@@ -89,6 +89,10 @@ def _route_candidates(
     human_governance = research_state.get("human_governance_checkpoint_summary", {}) if isinstance(research_state.get("human_governance_checkpoint_summary", {}), dict) else {}
     benchmark = research_state.get("benchmark_case_suite_summary", {}) if isinstance(research_state.get("benchmark_case_suite_summary", {}), dict) else {}
     reframer = research_state.get("scientific_problem_reframer_summary", {}) if isinstance(research_state.get("scientific_problem_reframer_summary", {}), dict) else {}
+    prior_program = scheduler_memory_context.get("prior_research_program", {}) if isinstance(scheduler_memory_context.get("prior_research_program", {}), dict) else {}
+    prior_control_actions = prior_program.get("control_actions", []) if isinstance(prior_program.get("control_actions", []), list) else []
+    prior_portfolio = prior_program.get("experiment_portfolio", {}) if isinstance(prior_program.get("experiment_portfolio", {}), dict) else {}
+    rival_reasoning = prior_program.get("rival_hypothesis_reasoning", {}) if isinstance(prior_program.get("rival_hypothesis_reasoning", {}), dict) else {}
 
     if evidence.get("review_blockers") or evidence.get("review_readiness") not in {"", "decision_ready", "ready"}:
         add("review_more_literature", "evidence review has blockers or is not decision-ready", 7, cost=1, risk=1)
@@ -121,6 +125,18 @@ def _route_candidates(
         add("terminate_or_cool_route", "route temperature indicates repeated pressure or weak route reuse", 6, cost=1, risk=1)
     if benchmark.get("benchmark_readiness") in {"medium", "high"} and not human_governance.get("must_pause_execution"):
         add("publish_or_report", "benchmark readiness supports reporting or release review", 5, cost=1, risk=2)
+    if prior_control_actions:
+        first_action = str(prior_control_actions[0].get("action", "") if isinstance(prior_control_actions[0], dict) else "").strip()
+        if "evidence" in first_action:
+            add("review_more_literature", "prior research program requires evidence-map repair", 8, cost=1, risk=1)
+        elif "hypothesis" in first_action:
+            add("refine_hypothesis", "prior research program requires hypothesis lifecycle repair", 8, cost=1, risk=1)
+        elif "meeting" in first_action:
+            add("hold_lab_meeting", "prior research program requires structured meeting resolution", 7, cost=1, risk=1)
+    if prior_portfolio.get("selected_experiments"):
+        add("schedule_experiment", "prior research program selected an experiment portfolio", 8, cost=2, risk=2)
+    if int(rival_reasoning.get("high_priority_pair_count", 0) or 0) > 0:
+        add("design_discriminative_experiment", "rival hypothesis reasoning requires discriminative tests", 8, cost=1, risk=1)
     if not candidates:
         add("design_discriminative_experiment", "default next action is to design the smallest discriminative experiment", 5, cost=1, risk=1)
     return candidates

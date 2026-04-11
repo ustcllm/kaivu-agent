@@ -1,0 +1,20 @@
+case_id: adversarial_repeat_failed_route
+priority: P0
+category: failure_learning
+split: release
+tags:
+  - adversarial
+  - failed_attempt
+  - scheduler
+task: Detect when a proposed experiment repeats a prior failed route without changed conditions.
+inputs:
+  object_types:
+    - negative_result
+    - experiment_candidate
+expected_outputs:
+  - research_program_summary.failed_attempt_recall
+  - scheduler_memory_context.failed_routes
+rubric:
+  - repeated failed route is detected before scheduling
+  - changed condition or new mechanism is required
+  - scheduler reduces priority or requests redesign

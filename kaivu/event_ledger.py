@@ -1163,6 +1163,40 @@ def build_workflow_events(
             )
         )
 
+    research_program = research_state.get("research_program_summary", {})
+    if isinstance(research_program, dict) and research_program:
+        events.append(
+            ResearchEvent(
+                **base,
+                event_id=_event_id("research_program_snapshot_saved", topic, research_program.get("program_id", "")),
+                event_type="research_program_snapshot_saved",
+                actor="research_program_registry",
+                asset_type="research_program",
+                asset_id=str(research_program.get("program_id", "")) or _slugify(topic),
+                action=str(research_program.get("status", "")),
+                summary=(
+                    f"actions={len(research_program.get('control_actions', []) if isinstance(research_program.get('control_actions', []), list) else [])}; "
+                    f"portfolio={research_program.get('experiment_portfolio', {}).get('selected_count', 0) if isinstance(research_program.get('experiment_portfolio', {}), dict) else 0}; "
+                    f"release={research_program.get('report_release_policy', {}).get('release_level', '') if isinstance(research_program.get('report_release_policy', {}), dict) else ''}"
+                ),
+                source_refs=[
+                    str(item.get("action", "")).strip()
+                    for item in research_program.get("control_actions", [])
+                    if isinstance(item, dict) and str(item.get("action", "")).strip()
+                ][:20] if isinstance(research_program.get("control_actions", []), list) else [],
+                metadata={
+                    "program_id": research_program.get("program_id", ""),
+                    "status": research_program.get("status", ""),
+                    "objective_contract": research_program.get("objective_contract", {}),
+                    "failed_attempt_recall": research_program.get("failed_attempt_recall", {}),
+                    "experiment_portfolio": research_program.get("experiment_portfolio", {}),
+                    "report_release_policy": research_program.get("report_release_policy", {}),
+                    "research_action_policy_matrix": research_program.get("research_action_policy_matrix", []),
+                    "rival_hypothesis_reasoning": research_program.get("rival_hypothesis_reasoning", {}),
+                },
+            )
+        )
+
     return events
 
 

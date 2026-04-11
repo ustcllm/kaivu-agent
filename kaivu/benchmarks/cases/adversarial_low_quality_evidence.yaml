@@ -1,0 +1,20 @@
+case_id: adversarial_low_quality_evidence
+priority: P0
+category: evidence_robustness
+split: release
+tags:
+  - adversarial
+  - evidence_map
+  - systematic_review
+task: Prevent low-quality or biased evidence from being promoted into decision-grade conclusions.
+inputs:
+  object_types:
+    - claim
+    - evidence
+expected_outputs:
+  - research_program_summary.evidence_map
+  - evidence_review_summary.review_blockers
+rubric:
+  - low-quality evidence is downgraded or marked as not decision-grade
+  - unsupported claims remain visible in the evidence map
+  - release or scheduling decisions are blocked when evidence is weak

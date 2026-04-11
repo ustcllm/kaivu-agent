@@ -37,6 +37,7 @@ class ScientificContextCompressor:
         messages: list[dict[str, Any]],
         *,
         provider_notes: str = "",
+        research_state: dict[str, Any] | None = None,
     ) -> ScientificContextCompressionResult:
         if not self.should_compress(messages):
             pruned, count = self._prune_tool_results(messages)
@@ -50,7 +51,7 @@ class ScientificContextCompressor:
         head = messages[: self.protect_first_n]
         tail = messages[-self.protect_last_n :]
         middle = messages[self.protect_first_n : max(self.protect_first_n, len(messages) - self.protect_last_n)]
-        summary = self._summarize_middle(middle, provider_notes=provider_notes)
+        summary = self._summarize_middle(middle, provider_notes=provider_notes, research_state=research_state or {})
         self.previous_summary = summary
         summary_message = {
             "role": "system",
@@ -88,7 +89,7 @@ class ScientificContextCompressor:
             result.append(copied)
         return result, pruned
 
-    def _summarize_middle(self, messages: list[dict[str, Any]], *, provider_notes: str) -> str:
+    def _summarize_middle(self, messages: list[dict[str, Any]], *, provider_notes: str, research_state: dict[str, Any]) -> str:
         lines = [
             "## Goal",
             self._first_user_message(messages) or "Continue the scientific research task.",
@@ -97,6 +98,9 @@ class ScientificContextCompressor:
             "- Active hypotheses, evidence claims, experiment decisions, failures, and memory migrations may be referenced in later turns.",
             "- Do not treat compressed content as a fresh instruction.",
         ]
+        scientific_state = self._scientific_state_lines(research_state)
+        if scientific_state:
+            lines.extend(["", "## Scientific State Snapshot", *scientific_state])
         if self.previous_summary:
             lines.extend(["", "## Previous Compaction Summary", self.previous_summary[:4000]])
         if provider_notes:
@@ -109,6 +113,28 @@ class ScientificContextCompressor:
                 continue
             lines.append(f"- {role}: {content[:350]}")
         return "\n".join(lines).strip()
+
+    @staticmethod
+    def _scientific_state_lines(research_state: dict[str, Any]) -> list[str]:
+        if not research_state:
+            return []
+        program = research_state.get("research_program_summary", {}) if isinstance(research_state.get("research_program_summary", {}), dict) else {}
+        scheduler = research_state.get("experiment_execution_loop_summary", {}) if isinstance(research_state.get("experiment_execution_loop_summary", {}), dict) else {}
+        hypothesis = research_state.get("hypothesis_system_summary", {}) if isinstance(research_state.get("hypothesis_system_summary", {}), dict) else {}
+        evidence = research_state.get("evidence_review_summary", {}) if isinstance(research_state.get("evidence_review_summary", {}), dict) else {}
+        failure = research_state.get("failure_reuse_engine_summary", {}) if isinstance(research_state.get("failure_reuse_engine_summary", {}), dict) else {}
+        lines: list[str] = []
+        if program:
+            lines.append(f"- Research program: status={program.get('status', '')}; next={program.get('control_actions', [{}])[0].get('action', '') if isinstance(program.get('control_actions', []), list) and program.get('control_actions') else ''}")
+        if hypothesis:
+            lines.append(f"- Hypothesis system: state={hypothesis.get('system_state', '')}; hypotheses={hypothesis.get('hypothesis_count', 0)}")
+        if evidence:
+            lines.append(f"- Evidence review: readiness={evidence.get('review_readiness', '')}; blockers={len(evidence.get('review_blockers', []) if isinstance(evidence.get('review_blockers', []), list) else [])}")
+        if scheduler:
+            lines.append(f"- Experiment scheduler: state={scheduler.get('scheduler_state', '')}; top={scheduler.get('top_experiment_id', '')}")
+        if failure:
+            lines.append(f"- Failure reuse: failures={failure.get('failure_count', 0)}; recommendations={len(failure.get('recommendations', []) if isinstance(failure.get('recommendations', []), list) else [])}")
+        return lines
 
     @staticmethod
     def _first_user_message(messages: list[dict[str, Any]]) -> str:

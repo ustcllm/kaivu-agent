@@ -23,6 +23,51 @@ class ScientificObject:
         return asdict(self)
 
 
+def build_research_operating_system_summary(
+    *,
+    topic: str,
+    project_id: str = "",
+    research_state: dict[str, Any],
+    claim_graph: dict[str, Any],
+    run_manifest: dict[str, Any],
+) -> dict[str, Any]:
+    """Compile the main scientific-agent control surfaces into one operating view."""
+    objective = _research_objective_contract(topic=topic, research_state=research_state, claim_graph=claim_graph)
+    hypothesis_lifecycle = _hypothesis_lifecycle_map(research_state=research_state, claim_graph=claim_graph)
+    evidence_map = _evidence_map(research_state=research_state, claim_graph=claim_graph)
+    resource_model = _resource_economics_model(research_state=research_state)
+    autonomy = _autonomy_control_ladder(research_state=research_state)
+    provenance = _provenance_source_policy(research_state=research_state, claim_graph=claim_graph, run_manifest=run_manifest)
+    lab_meeting = _lab_meeting_governance_model(research_state=research_state, claim_graph=claim_graph)
+    evaluation = _scientific_capability_evaluation_view(research_state=research_state)
+    control_actions = _operating_system_control_actions(
+        objective=objective,
+        hypothesis_lifecycle=hypothesis_lifecycle,
+        evidence_map=evidence_map,
+        resource_model=resource_model,
+        autonomy=autonomy,
+        provenance=provenance,
+        lab_meeting=lab_meeting,
+        evaluation=evaluation,
+    )
+    return {
+        "research_operating_system_id": f"research-os::{_slugify(project_id or 'workspace')}::{_slugify(topic)}",
+        "topic": topic,
+        "project_id": project_id,
+        "operating_state": "blocked" if any(item.get("severity") == "blocking" for item in control_actions) else "active",
+        "objective_contract": objective,
+        "hypothesis_lifecycle": hypothesis_lifecycle,
+        "evidence_map": evidence_map,
+        "resource_economics": resource_model,
+        "autonomy_control": autonomy,
+        "provenance_source_policy": provenance,
+        "lab_meeting_governance": lab_meeting,
+        "capability_evaluation": evaluation,
+        "control_actions": control_actions,
+        "next_control_focus": control_actions[0]["action"] if control_actions else "continue_current_research_cycle",
+    }
+
+
 def build_scientific_object_store_summary(
     *,
     topic: str,
@@ -2339,6 +2384,354 @@ def _role_required_evidence(role_name: str) -> list[str]:
     return ["claim statement", "hypothesis refs", "evidence refs"]
 
 
+def _research_objective_contract(*, topic: str, research_state: dict[str, Any], claim_graph: dict[str, Any]) -> dict[str, Any]:
+    plan = research_state.get("research_plan_summary", {}) if isinstance(research_state.get("research_plan_summary", {}), dict) else {}
+    reframer = research_state.get("scientific_problem_reframer_summary", {}) if isinstance(research_state.get("scientific_problem_reframer_summary", {}), dict) else {}
+    goal = str(plan.get("research_goal", "") or reframer.get("reframed_problem", "") or topic).strip()
+    scope = _strings(plan.get("scope", [])) or _strings(reframer.get("scope_constraints", []))
+    success = _strings(plan.get("success_criteria", [])) or [
+        "decision-grade evidence map exists",
+        "at least one falsifiable hypothesis has explicit predictions",
+        "next experiment or proof obligation is justified by information value",
+    ]
+    failure = _strings(plan.get("failure_criteria", [])) or [
+        "core hypothesis cannot be made falsifiable",
+        "available evidence is too weak or conflicted for decision use",
+        "resource cost exceeds expected information value",
+    ]
+    boundary = _strings(plan.get("boundary_conditions", [])) or _strings(reframer.get("boundary_conditions", []))
+    milestones = _strings(plan.get("milestones", [])) or [
+        "question framed",
+        "evidence map compiled",
+        "hypotheses gated",
+        "experiment or proof route scheduled",
+        "belief state updated",
+    ]
+    missing = []
+    if not goal:
+        missing.append("research_goal")
+    if not scope:
+        missing.append("scope")
+    if len(success) < 2:
+        missing.append("success_criteria")
+    if len(failure) < 2:
+        missing.append("failure_criteria")
+    if not boundary:
+        missing.append("boundary_conditions")
+    return {
+        "goal": goal,
+        "scope": scope[:8],
+        "success_criteria": success[:8],
+        "failure_criteria": failure[:8],
+        "boundary_conditions": boundary[:8],
+        "milestones": milestones[:10],
+        "claim_count": len(_items(claim_graph.get("claims", []))),
+        "hypothesis_count": len(_items(claim_graph.get("hypotheses", []))),
+        "contract_state": "operational" if not missing else "underspecified",
+        "missing_fields": missing,
+    }
+
+
+def _hypothesis_lifecycle_map(*, research_state: dict[str, Any], claim_graph: dict[str, Any]) -> dict[str, Any]:
+    theory = research_state.get("hypothesis_theory_summary", {}) if isinstance(research_state.get("hypothesis_theory_summary", {}), dict) else {}
+    validations = research_state.get("hypothesis_validation_summary", {}) if isinstance(research_state.get("hypothesis_validation_summary", {}), dict) else {}
+    gate = research_state.get("hypothesis_gate_summary", {}) if isinstance(research_state.get("hypothesis_gate_summary", {}), dict) else {}
+    negative_results = _items(claim_graph.get("negative_results", []))
+    validation_records = _items(validations.get("records", []))
+    gate_records = _items(gate.get("records", []))
+    by_id: dict[str, dict[str, Any]] = {}
+    for item in _items(claim_graph.get("hypotheses", [])):
+        hypothesis_id = str(item.get("global_hypothesis_id", "") or item.get("hypothesis_id", "")).strip()
+        if not hypothesis_id:
+            continue
+        by_id[hypothesis_id] = {
+            "hypothesis_id": hypothesis_id,
+            "name": str(item.get("name", "")).strip() or hypothesis_id,
+            "status": str(item.get("status", "active")).strip() or "active",
+            "lifecycle_state": "proposed",
+            "competing_hypothesis_ids": [],
+            "negative_result_refs": [],
+            "missing_theory_fields": [],
+            "recommended_transition": "validate",
+        }
+    for obj in _items(theory.get("objects", [])):
+        hypothesis_id = str(obj.get("hypothesis_id", "")).strip()
+        if not hypothesis_id:
+            continue
+        record = by_id.setdefault(hypothesis_id, {"hypothesis_id": hypothesis_id, "name": hypothesis_id})
+        record.update(
+            {
+                "lifecycle_state": _lifecycle_from_theory_object(obj),
+                "competing_hypothesis_ids": _strings(obj.get("competing_hypothesis_ids", [])),
+                "negative_result_refs": _strings(obj.get("negative_result_refs", [])),
+                "missing_theory_fields": _strings(obj.get("missing_theory_fields", [])),
+                "recommended_transition": _transition_from_theory_object(obj),
+            }
+        )
+    for record in validation_records:
+        hypothesis_id = str(record.get("hypothesis_id", "")).strip()
+        if hypothesis_id in by_id:
+            by_id[hypothesis_id]["validator_summary"] = record
+    for record in gate_records:
+        hypothesis_id = str(record.get("hypothesis_id", "")).strip()
+        if hypothesis_id in by_id:
+            by_id[hypothesis_id]["gate_summary"] = record
+    for result in negative_results:
+        result_id = str(result.get("negative_result_id", "") or result.get("id", "")).strip()
+        for hypothesis_id in _strings(result.get("affected_hypothesis_ids", [])):
+            if hypothesis_id in by_id:
+                by_id[hypothesis_id].setdefault("negative_result_refs", []).append(result_id)
+                by_id[hypothesis_id]["lifecycle_state"] = "challenged"
+                by_id[hypothesis_id]["recommended_transition"] = "revise_or_retire"
+    records = list(by_id.values())
+    return {
+        "record_count": len(records),
+        "state_counts": _count_by(records, "lifecycle_state"),
+        "advance_count": len([item for item in records if item.get("recommended_transition") == "advance"]),
+        "revise_or_retire_count": len([item for item in records if item.get("recommended_transition") in {"revise", "revise_or_retire", "retire"}]),
+        "records": records[:100],
+    }
+
+
+def _evidence_map(*, research_state: dict[str, Any], claim_graph: dict[str, Any]) -> dict[str, Any]:
+    evidence_review = research_state.get("evidence_review_summary", {}) if isinstance(research_state.get("evidence_review_summary", {}), dict) else {}
+    compiler = research_state.get("literature_claim_compiler_summary", {}) if isinstance(research_state.get("literature_claim_compiler_summary", {}), dict) else {}
+    links = _items(evidence_review.get("evidence_claim_links", [])) or _items(compiler.get("claim_evidence_links", []))
+    evidence_items = _items(claim_graph.get("evidence", []))
+    claims = _items(claim_graph.get("claims", []))
+    support_counts: dict[str, int] = {}
+    refute_counts: dict[str, int] = {}
+    for link in links:
+        claim_id = str(link.get("claim_id", "") or link.get("target", "")).strip()
+        relation = str(link.get("relation", "supports")).strip().lower()
+        if not claim_id:
+            continue
+        if relation in {"refutes", "contradicts", "against"}:
+            refute_counts[claim_id] = refute_counts.get(claim_id, 0) + 1
+        else:
+            support_counts[claim_id] = support_counts.get(claim_id, 0) + 1
+    unsupported = []
+    contested = []
+    for claim in claims:
+        claim_id = str(claim.get("global_claim_id", "") or claim.get("claim_id", "") or claim.get("id", "")).strip()
+        if not claim_id:
+            continue
+        if not support_counts.get(claim_id) and not _strings(claim.get("supports", [])):
+            unsupported.append(claim_id)
+        if refute_counts.get(claim_id) or str(claim.get("status", "")).lower() in {"contested", "conflicted"}:
+            contested.append(claim_id)
+    return {
+        "claim_count": len(claims),
+        "evidence_count": len(evidence_items),
+        "link_count": len(links),
+        "unsupported_claim_ids": unsupported[:20],
+        "contested_claim_ids": contested[:20],
+        "quality_balance": evidence_review.get("evidence_grade_balance", {}),
+        "bias_risk_summary": evidence_review.get("bias_risk_summary", {}),
+        "review_readiness": evidence_review.get("review_readiness", "draft"),
+        "map_state": "decision_grade" if evidence_review.get("review_readiness") == "decision_ready" and not unsupported else "needs_curation",
+    }
+
+
+def _resource_economics_model(*, research_state: dict[str, Any]) -> dict[str, Any]:
+    economics = research_state.get("experiment_economics_summary", {}) if isinstance(research_state.get("experiment_economics_summary", {}), dict) else {}
+    voi = research_state.get("value_of_information_summary", {}) if isinstance(research_state.get("value_of_information_summary", {}), dict) else {}
+    scheduler = research_state.get("experiment_execution_loop_summary", {}) if isinstance(research_state.get("experiment_execution_loop_summary", {}), dict) else {}
+    candidates = _items(scheduler.get("candidate_experiments", []))
+    high_value = [
+        item for item in _items(voi.get("items", []))
+        if _float(item.get("value_of_information", 0)) >= 2.0
+    ]
+    expensive = [
+        item for item in candidates
+        if _float(item.get("cost_score", 0)) + _float(item.get("time_score", 0)) >= 3.0
+    ]
+    return {
+        "cost_pressure": str(economics.get("cost_pressure", "medium")),
+        "time_pressure": str(economics.get("time_pressure", "medium")),
+        "candidate_count": len(candidates),
+        "high_value_candidate_count": len(high_value),
+        "expensive_candidate_count": len(expensive),
+        "top_value_of_information": voi.get("top_value_of_information", 0),
+        "policy": "cheap_screening_then_discriminative_tests",
+        "stop_loss_rule": "pause or pivot when repeated failures do not reduce uncertainty",
+        "economics_state": "resource_constrained" if expensive and not high_value else "actionable",
+    }
+
+
+def _autonomy_control_ladder(*, research_state: dict[str, Any]) -> dict[str, Any]:
+    autonomy = research_state.get("autonomy_summary", {}) if isinstance(research_state.get("autonomy_summary", {}), dict) else {}
+    controller = research_state.get("autonomous_controller_summary", {}) if isinstance(research_state.get("autonomous_controller_summary", {}), dict) else {}
+    human = research_state.get("human_governance_checkpoint_summary", {}) if isinstance(research_state.get("human_governance_checkpoint_summary", {}), dict) else {}
+    risk = research_state.get("experiment_risk_permission_summary", {}) if isinstance(research_state.get("experiment_risk_permission_summary", {}), dict) else {}
+    requested = str(autonomy.get("autonomy_level", "") or autonomy.get("mode", "")).strip().upper()
+    if requested.startswith("L") and requested[1:].isdigit():
+        level = requested
+    elif risk.get("permission_state") in {"blocked", "requires_human_approval"} or human.get("open_checkpoint_count"):
+        level = "L2"
+    elif controller.get("controller_state") in {"continue_autonomously", "active"}:
+        level = "L3"
+    else:
+        level = "L1"
+    permissions = {
+        "L0": ["answer_only"],
+        "L1": ["suggest_actions"],
+        "L2": ["draft_digest", "wait_for_confirmation"],
+        "L3": ["auto_promote_low_risk_memory", "log_all_migrations"],
+        "L4": ["auto_schedule_computational_experiments", "pause_for_claim_promotion"],
+        "L5": ["autonomous_campaign", "full_replay_required"],
+    }
+    return {
+        "current_level": level,
+        "allowed_actions": permissions.get(level, permissions["L1"]),
+        "must_pause_for": _dedupe(
+            _strings(human.get("required_checkpoints", []))
+            + _strings(risk.get("required_approvals", []))
+            + ["high-risk memory promotion", "major hypothesis retirement"]
+        )[:12],
+        "logging_required": level in {"L2", "L3", "L4", "L5"},
+        "controller_state": controller.get("controller_state", ""),
+    }
+
+
+def _provenance_source_policy(*, research_state: dict[str, Any], claim_graph: dict[str, Any], run_manifest: dict[str, Any]) -> dict[str, Any]:
+    unified = research_state.get("unified_provenance_graph_summary", {}) if isinstance(research_state.get("unified_provenance_graph_summary", {}), dict) else {}
+    object_store = research_state.get("scientific_object_store_summary", {}) if isinstance(research_state.get("scientific_object_store_summary", {}), dict) else {}
+    node_count = _safe_int(unified.get("node_count", 0))
+    edge_count = _safe_int(unified.get("edge_count", 0))
+    object_count = _safe_int(object_store.get("object_count", 0))
+    graph_coverage = round(min(1.0, node_count / max(1, object_count)), 3) if object_count else 0.0
+    missing = []
+    if not node_count:
+        missing.append("provenance_nodes")
+    if not edge_count:
+        missing.append("provenance_edges")
+    if not run_manifest.get("artifacts"):
+        missing.append("artifact_manifest")
+    if claim_graph.get("claims") and not claim_graph.get("edges"):
+        missing.append("claim_evidence_edges")
+    return {
+        "canonical_source": "unified_provenance_graph",
+        "graph_coverage": graph_coverage,
+        "node_count": node_count,
+        "edge_count": edge_count,
+        "object_count": object_count,
+        "missing_contracts": missing[:12],
+        "policy_state": "canonical_ready" if graph_coverage >= 0.8 and not missing else "needs_graph_sync",
+        "read_policy": "runtime decisions should prefer graph facts, then memory, then raw step outputs",
+        "write_policy": "claims, hypotheses, experiments, artifacts, and decisions should emit provenance facts",
+    }
+
+
+def _lab_meeting_governance_model(*, research_state: dict[str, Any], claim_graph: dict[str, Any]) -> dict[str, Any]:
+    debate = research_state.get("scientific_debate_protocol_summary", {}) if isinstance(research_state.get("scientific_debate_protocol_summary", {}), dict) else {}
+    meeting = research_state.get("lab_meeting_protocol_summary", {}) if isinstance(research_state.get("lab_meeting_protocol_summary", {}), dict) else {}
+    stance = research_state.get("agent_stance_continuity_summary", {}) if isinstance(research_state.get("agent_stance_continuity_summary", {}), dict) else {}
+    disagreements = _strings(debate.get("open_disagreements", [])) + _strings(meeting.get("open_disagreements", []))
+    records = _items(stance.get("records", []))
+    required_roles = ["proposer", "supporter", "skeptic", "methodologist", "statistician", "chair"]
+    present_roles = _dedupe([str(item.get("role", "") or item.get("agent_role", "")).strip() for item in records])
+    missing_roles = [role for role in required_roles if role not in present_roles]
+    return {
+        "consensus_level": debate.get("consensus_level", meeting.get("consensus_level", "forming")),
+        "formal_record_required": bool(debate.get("formal_record_required") or disagreements or claim_graph.get("hypotheses")),
+        "required_roles": required_roles,
+        "present_roles": present_roles,
+        "missing_roles": missing_roles,
+        "open_disagreements": disagreements[:12],
+        "decision_rule": debate.get("decision_rule", "advance only after skeptic and methodologist objections are resolved or recorded"),
+        "governance_state": "ready_for_decision" if not missing_roles and not disagreements else "needs_structured_meeting",
+    }
+
+
+def _scientific_capability_evaluation_view(*, research_state: dict[str, Any]) -> dict[str, Any]:
+    harness = research_state.get("kaivu_evaluation_harness_summary", {}) if isinstance(research_state.get("kaivu_evaluation_harness_summary", {}), dict) else {}
+    benchmark = research_state.get("benchmark_case_suite_summary", {}) if isinstance(research_state.get("benchmark_case_suite_summary", {}), dict) else {}
+    system = research_state.get("scientific_evaluation_system_summary", {}) if isinstance(research_state.get("scientific_evaluation_system_summary", {}), dict) else {}
+    gaps = _dedupe(
+        _strings(harness.get("blocking_gates", []))
+        + _strings(benchmark.get("failed_cases", []))
+        + _strings(system.get("gaps", []))
+    )
+    score = _float(harness.get("overall_score", system.get("overall_score", 0)))
+    return {
+        "overall_score": score,
+        "release_state": harness.get("release_state", system.get("release_state", "")),
+        "benchmark_state": benchmark.get("benchmark_state", ""),
+        "blocking_gap_count": len(gaps),
+        "blocking_gaps": gaps[:20],
+        "evaluation_state": "regression_ready" if score >= 0.75 and not gaps else "needs_benchmark_hardening",
+    }
+
+
+def _operating_system_control_actions(
+    *,
+    objective: dict[str, Any],
+    hypothesis_lifecycle: dict[str, Any],
+    evidence_map: dict[str, Any],
+    resource_model: dict[str, Any],
+    autonomy: dict[str, Any],
+    provenance: dict[str, Any],
+    lab_meeting: dict[str, Any],
+    evaluation: dict[str, Any],
+) -> list[dict[str, Any]]:
+    actions: list[dict[str, Any]] = []
+    if objective.get("contract_state") != "operational":
+        actions.append(_control_action("tighten_research_objective", "blocking", objective.get("missing_fields", [])))
+    if evidence_map.get("map_state") != "decision_grade":
+        actions.append(_control_action("curate_evidence_map_before_major_decision", "high", evidence_map.get("unsupported_claim_ids", [])))
+    if hypothesis_lifecycle.get("revise_or_retire_count", 0):
+        actions.append(_control_action("update_hypothesis_tree_lifecycle", "high", ["challenged or weak hypotheses exist"]))
+    if resource_model.get("economics_state") == "resource_constrained":
+        actions.append(_control_action("apply_resource_stop_loss_or_screening", "medium", ["expensive candidates without enough value-of-information"]))
+    if provenance.get("policy_state") != "canonical_ready":
+        actions.append(_control_action("sync_provenance_graph_as_source_of_truth", "high", provenance.get("missing_contracts", [])))
+    if lab_meeting.get("governance_state") != "ready_for_decision":
+        actions.append(_control_action("run_structured_lab_meeting_record", "medium", lab_meeting.get("missing_roles", [])))
+    if evaluation.get("evaluation_state") != "regression_ready":
+        actions.append(_control_action("harden_scientific_evaluation_benchmark", "medium", evaluation.get("blocking_gaps", [])))
+    if autonomy.get("current_level") in {"L3", "L4", "L5"} and autonomy.get("must_pause_for"):
+        actions.append(_control_action("enforce_autonomy_pause_points", "high", autonomy.get("must_pause_for", [])))
+    return actions[:12]
+
+
+def _control_action(action: str, severity: str, reasons: list[str]) -> dict[str, Any]:
+    return {
+        "action": action,
+        "severity": severity,
+        "reasons": _strings(reasons)[:8],
+    }
+
+
+def _lifecycle_from_theory_object(obj: dict[str, Any]) -> str:
+    decision = str(obj.get("decision_state", "")).strip().lower()
+    status = str(obj.get("status", "")).strip().lower()
+    maturity = str(obj.get("theory_maturity", "")).strip().lower()
+    if status == "rejected" or decision == "block":
+        return "retired"
+    if obj.get("negative_result_refs"):
+        return "challenged"
+    if decision == "advance" and maturity == "predictive":
+        return "ready_for_discriminative_test"
+    if decision == "revise":
+        return "needs_revision"
+    if maturity in {"structured", "predictive"}:
+        return "formalized"
+    return "proposed"
+
+
+def _transition_from_theory_object(obj: dict[str, Any]) -> str:
+    state = _lifecycle_from_theory_object(obj)
+    return {
+        "retired": "retire",
+        "challenged": "revise_or_retire",
+        "ready_for_discriminative_test": "advance",
+        "needs_revision": "revise",
+        "formalized": "schedule_or_compare",
+        "proposed": "validate",
+    }.get(state, "observe")
+
+
 def _error_record(topic: str, error_type: str, description: str, severity: str, refs: list[str]) -> dict[str, Any]:
     return {
         "error_id": f"scientific-error::{_slugify(topic)}::{error_type}::{_slugify(description[:80])}",
@@ -2498,6 +2891,13 @@ def _float(value: Any) -> float:
         return float(value)
     except Exception:
         return 0.0
+
+
+def _safe_int(value: Any) -> int:
+    try:
+        return int(value)
+    except Exception:
+        return 0
 
 
 def _slugify(value: str) -> str:

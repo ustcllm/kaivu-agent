@@ -1,0 +1,19 @@
+case_id: adversarial_untestable_hypothesis
+priority: P0
+category: hypothesis_quality
+split: release
+tags:
+  - adversarial
+  - hypothesis_gate
+  - theory_formalization
+task: Reject or revise hypotheses that cannot produce measurable predictions or falsification tests.
+inputs:
+  object_types:
+    - hypothesis
+expected_outputs:
+  - hypothesis_validation_summary.records
+  - research_program_summary.hypothesis_lifecycle
+rubric:
+  - missing measurable variables are flagged
+  - missing falsification tests trigger revision or blocking
+  - expensive experiments are not scheduled for untestable hypotheses

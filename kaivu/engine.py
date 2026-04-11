@@ -11,6 +11,7 @@ from .messages import Message, ToolCall
 from .model import AgentAction, ModelBackend
 from .permissions import PermissionPolicy
 from .state import AgentState
+from .tool_permission import evaluate_scientific_tool_call
 from .tools import ToolContext, ToolRegistry, record_execution_log
 
 
@@ -206,6 +207,18 @@ class ScientificAgent:
             is_destructive=tool.destructive,
             cwd=self.state.cwd,
         )
+        scientific_decision = evaluate_scientific_tool_call(
+            tool_name=tool.name,
+            arguments=arguments,
+            autonomy_level=self.permission_policy.scientific_autonomy_level,
+            destructive=tool.destructive,
+            enforce_review=self.permission_policy.enforce_scientific_tool_policy,
+        )
+        if not scientific_decision.allowed:
+            decision.allowed = False
+            decision.reason = scientific_decision.reason or (
+                f"scientific tool policy blocked '{tool.name}'"
+            )
         self._emit_runtime_event(
             "permission.decision",
             payload={
@@ -214,6 +227,7 @@ class ScientificAgent:
                 "allowed": bool(decision.allowed),
                 "reason": decision.reason,
                 "destructive": bool(tool.destructive),
+                "scientific_tool_policy": scientific_decision.to_dict(),
             },
         )
         if not decision.allowed:

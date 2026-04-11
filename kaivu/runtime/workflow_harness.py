@@ -105,11 +105,17 @@ class ScientificRuntimeHarness:
             evaluation_summary=getattr(result, "research_state", {}).get("kaivu_evaluation_harness_summary", {}),
         )
         trajectory_path = self.trajectory_store.append(trajectory)
+        replay_case_path = self.trajectory_store.append_scientific_replay_case(
+            trajectory,
+            research_state=getattr(result, "research_state", {}),
+            claim_graph=getattr(result, "claim_graph", {}),
+        )
         if hasattr(result, "research_state") and isinstance(result.research_state, dict):
             result.research_state["runtime_harness_summary"] = {
                 "session_id": runtime_session.session_id,
                 "event_path": str(event_path),
                 "trajectory_path": str(trajectory_path),
+                "replay_case_path": str(replay_case_path),
                 "event_count": len(stream.snapshot()),
             }
         if hasattr(result, "claim_graph") and isinstance(result.claim_graph, dict):

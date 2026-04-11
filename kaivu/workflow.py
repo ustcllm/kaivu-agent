@@ -51,6 +51,7 @@ from .problem_reframer import build_scientific_problem_reframer_summary
 from .profiles import DEFAULT_SCIENCE_PROFILES, SpecialistProfile
 from .prompts import PromptBuilder
 from .reporting import render_markdown_report, write_markdown_report
+from .research_program import ResearchProgram, ResearchProgramRegistry, build_research_program_from_state
 from .run_handoff import build_run_handoff_contract_summary
 from .risk_permissions import build_experiment_risk_permission_summary
 from .route_scheduler import build_research_route_scheduler_summary
@@ -66,6 +67,7 @@ from .scientific_kernel import (
     build_model_reliability_layer_summary,
     build_next_cycle_decision_directives_summary,
     build_research_state_machine_summary,
+    build_research_operating_system_summary,
     build_reproducibility_kernel_summary,
     build_discipline_native_kernel_summary,
     build_lab_meeting_protocol_summary,
@@ -181,6 +183,7 @@ class ScientificWorkflow:
         self.graph_registry = ResearchGraphRegistry(self.cwd / ".state" / "graph")
         self.event_ledger = ResearchEventLedger(self.cwd / ".state" / "events")
         self.experiment_registry = ExperimentRegistry(self.cwd / ".state" / "experiments")
+        self.research_program_registry = ResearchProgramRegistry(self.cwd / ".state" / "programs")
         self.executor_registry = ScientificExecutorRegistry(
             cwd=self.cwd,
             graph_registry=self.graph_registry,
@@ -200,6 +203,20 @@ class ScientificWorkflow:
     ) -> WorkflowRunResult:
         steps: list[WorkflowStepResult] = []
         project_id = str(self.collaboration_context.get("project_id", "")).strip()
+        prior_program = self.research_program_registry.latest_program(project_id=project_id, topic=topic)
+        if prior_program:
+            self.collaboration_context["research_program_context"] = {
+                "program_id": prior_program.get("program_id", ""),
+                "status": prior_program.get("status", ""),
+                "objective_contract": prior_program.get("objective_contract", {}),
+                "control_actions": prior_program.get("control_actions", [])[:10]
+                if isinstance(prior_program.get("control_actions", []), list)
+                else [],
+                "failed_attempt_recall": prior_program.get("failed_attempt_recall", {}),
+                "experiment_portfolio": prior_program.get("experiment_portfolio", {}),
+                "report_release_policy": prior_program.get("report_release_policy", {}),
+                "rival_hypothesis_reasoning": prior_program.get("rival_hypothesis_reasoning", {}),
+            }
         graph_history_summary = self.graph_registry.summarize(project_id=project_id, topic=topic)
         self.collaboration_context["typed_research_graph_history"] = graph_history_summary
         self.collaboration_context["typed_research_graph_query"] = self._build_typed_graph_query_context(topic)
@@ -418,6 +435,12 @@ class ScientificWorkflow:
         )
         claim_graph["scientific_kernel_state_summary"] = research_state.get(
             "scientific_kernel_state_summary", {}
+        )
+        claim_graph["research_operating_system_summary"] = research_state.get(
+            "research_operating_system_summary", {}
+        )
+        claim_graph["research_program_summary"] = research_state.get(
+            "research_program_summary", {}
         )
         claim_graph["scientific_error_taxonomy_summary"] = research_state.get(
             "scientific_error_taxonomy_summary", {}
@@ -1834,10 +1857,27 @@ class ScientificWorkflow:
             if isinstance(project_distill.get("failed_routes", []), list)
             else []
         )
+        prior_program = (
+            self.collaboration_context.get("research_program_context", {})
+            if isinstance(self.collaboration_context.get("research_program_context", {}), dict)
+            else {}
+        )
+        prior_failed_recall = (
+            prior_program.get("failed_attempt_recall", {})
+            if isinstance(prior_program.get("failed_attempt_recall", {}), dict)
+            else {}
+        )
+        prior_repeat_warnings = [
+            str(item.get("required_change", "") or item.get("negative_result_id", "")).strip()
+            for item in prior_failed_recall.get("repeat_risk_warnings", [])
+            if isinstance(item, dict)
+            and str(item.get("required_change", "") or item.get("negative_result_id", "")).strip()
+        ] if isinstance(prior_failed_recall.get("repeat_risk_warnings", []), list) else []
         failed_routes = list(
             dict.fromkeys(
                 avoid_repeat_routes
                 + distill_failed_routes
+                + prior_repeat_warnings
                 + [
                     str(item.get("title", "")).strip()
                     for item in memory_signals
@@ -1872,6 +1912,7 @@ class ScientificWorkflow:
             "failed_routes": failed_routes,
             "successful_routes": successful_routes,
             "standing_objections": standing_objections,
+            "prior_research_program": prior_program,
             "policy": "scheduler must not repeat failed routes without changed conditions and must address standing objections",
         }
 
@@ -3061,6 +3102,43 @@ class ScientificWorkflow:
         reliability_state["hypothesis_system_summary"] = hypothesis_system_summary
         reliability_state["scientific_evaluation_system_summary"] = scientific_evaluation_system_summary
         reliability_state["workflow_control_summary"] = workflow_control_summary
+        research_operating_system_summary = build_research_operating_system_summary(
+            topic=topic,
+            project_id=str(self.collaboration_context.get("project_id", "")).strip(),
+            research_state=reliability_state,
+            claim_graph=claim_graph,
+            run_manifest=run_manifest,
+        )
+        reliability_state["research_operating_system_summary"] = research_operating_system_summary
+        research_program_summary = build_research_program_from_state(
+            topic=topic,
+            project_id=str(self.collaboration_context.get("project_id", "")).strip(),
+            research_state=reliability_state,
+            claim_graph=claim_graph,
+            run_manifest=run_manifest,
+        )
+        reliability_state["research_program_summary"] = research_program_summary
+        self.research_program_registry.save_program(
+            ResearchProgram(
+                program_id=str(research_program_summary.get("program_id", "")),
+                topic=topic,
+                project_id=str(self.collaboration_context.get("project_id", "")).strip(),
+                status=str(research_program_summary.get("status", "active")),
+                objective_contract=research_program_summary.get("objective_contract", {}),
+                hypothesis_lifecycle=research_program_summary.get("hypothesis_lifecycle", {}),
+                evidence_map=research_program_summary.get("evidence_map", {}),
+                resource_economics=research_program_summary.get("resource_economics", {}),
+                autonomy_policy=research_program_summary.get("autonomy_policy", {}),
+                provenance_policy=research_program_summary.get("provenance_policy", {}),
+                meeting_governance=research_program_summary.get("meeting_governance", {}),
+                evaluation_contract=research_program_summary.get("evaluation_contract", {}),
+                failed_attempt_recall=research_program_summary.get("failed_attempt_recall", {}),
+                experiment_portfolio=research_program_summary.get("experiment_portfolio", {}),
+                report_release_policy=research_program_summary.get("report_release_policy", {}),
+                control_actions=research_program_summary.get("control_actions", []),
+                updated_at=str(research_program_summary.get("updated_at", "")),
+            )
+        )
         scientific_kernel_state_summary = build_scientific_kernel_state_summary(
             topic=topic,
             project_id=str(self.collaboration_context.get("project_id", "")).strip(),
@@ -3197,6 +3275,8 @@ class ScientificWorkflow:
             "scientific_error_taxonomy_summary": scientific_error_taxonomy_summary,
             "scientific_release_gate_summary": scientific_release_gate_summary,
             "memory_conflict_version_graph_summary": memory_conflict_version_graph_summary,
+            "research_operating_system_summary": research_operating_system_summary,
+            "research_program_summary": research_program_summary,
             "project_distill": project_distill,
             "execution_cycle_summary": execution_cycle_summary,
             "termination_strategy_summary": termination_strategy_summary,

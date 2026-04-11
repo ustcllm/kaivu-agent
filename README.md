@@ -284,6 +284,7 @@ kaivu-agent/
 - `kaivu/campaign_planner.py`：多步研究计划。
 - `kaivu/route_scheduler.py`：工作流路线调度。
 - `kaivu/experiment_scheduler.py`：实验优先级调度。
+- `kaivu/research_program.py`：研究计划对象、证据查询、假说迁移、实验组合选择和正式组会记录。
 - `kaivu/experiments/`：实验模型、注册表、学科适配和质量审查。
 - `kaivu/graph/`：溯源图谱模型和注册表。
 - `kaivu/evaluation_harness.py`：评估、基准测试和回放。

@@ -21,6 +21,8 @@ class PermissionPolicy:
     mode: PermissionMode = "deny_destructive"
     allow_tools: set[str] = field(default_factory=set)
     deny_tools: set[str] = field(default_factory=set)
+    scientific_autonomy_level: str = "L2"
+    enforce_scientific_tool_policy: bool = False
     allowed_read_roots: list[str] = field(default_factory=list)
     allowed_write_roots: list[str] = field(default_factory=list)
     denied_path_prefixes: list[str] = field(default_factory=list)
@@ -48,6 +50,19 @@ class PermissionPolicy:
         "rm ",
         "format ",
     )
+
+    def summary(self) -> dict[str, Any]:
+        return {
+            "mode": self.mode,
+            "allow_tools": sorted(self.allow_tools),
+            "deny_tools": sorted(self.deny_tools),
+            "allowed_read_roots": self.allowed_read_roots,
+            "allowed_write_roots": self.allowed_write_roots,
+            "denied_path_prefixes": self.denied_path_prefixes,
+            "blocked_extensions": sorted(self.blocked_extensions),
+            "scientific_autonomy_level": self.scientific_autonomy_level,
+            "enforce_scientific_tool_policy": self.enforce_scientific_tool_policy,
+        }
 
     def evaluate(
         self,
