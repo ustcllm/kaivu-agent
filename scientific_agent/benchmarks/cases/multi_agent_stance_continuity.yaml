@@ -1,0 +1,20 @@
+case_id: multi_agent_stance_continuity
+priority: P0
+category: multi_agent_collaboration
+split: release
+tags:
+  - role_memory
+  - lab_meeting
+  - stance_continuity
+task: Ensure each specialist keeps a role-memory stance and explicitly justifies stance changes.
+inputs:
+  object_types:
+    - agent_stance
+    - lab_meeting_position
+expected_outputs:
+  - agent_stance_continuity_summary.records
+  - agent_stance_continuity_summary.role_memory_updates
+rubric:
+  - agent positions persist across cycles
+  - changed stances include evidence or failure-based reasons
+  - standing objections are preserved for the next lab meeting

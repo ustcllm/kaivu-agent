@@ -1,0 +1,11 @@
+{
+  "node_id": "e1",
+  "node_type": "evidence",
+  "label": "Evidence 1",
+  "project_id": "proj_graph",
+  "topic": "graph topic",
+  "metadata": {
+    "global_evidence_id": "e1",
+    "summary": "Evidence 1"
+  }
+}

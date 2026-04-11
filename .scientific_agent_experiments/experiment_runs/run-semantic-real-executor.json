@@ -1,0 +1,29 @@
+{
+  "run_id": "run::semantic-real-executor",
+  "experiment_id": "exp::semantic-real-executor",
+  "protocol_id": "protocol::exp-semantic-real-executor",
+  "status": "completed",
+  "operator": "local-python-fixture",
+  "started_at": "",
+  "ended_at": "",
+  "configuration_snapshot": {
+    "seed": 7,
+    "parameter": 0.42
+  },
+  "environment_snapshot": {
+    "fixture": true
+  },
+  "seed": null,
+  "approval_status": "approved",
+  "approved_by": "",
+  "approval_note": "",
+  "supersedes_run_id": "",
+  "governance_stage": "handoff_returned",
+  "paused_reason": "",
+  "cost_pressure": "",
+  "adjudication_status": "",
+  "discipline_payload": {
+    "package_id": "pkg::semantic-real-executor-fixture",
+    "adapter_id": "adapter::artificial_intelligence_training"
+  }
+}

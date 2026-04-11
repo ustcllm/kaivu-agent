@@ -1,0 +1,15 @@
+{
+  "node_id": "specialist-reference::lab_meeting_moderator::sync-topic::5",
+  "node_type": "specialist_reference",
+  "label": "lab_meeting_moderator graph reference",
+  "project_id": "p-sync",
+  "topic": "sync topic",
+  "metadata": {
+    "profile_name": "lab_meeting_moderator",
+    "usage_note": "checked prior claim",
+    "node_refs": [
+      "claim::1"
+    ],
+    "edge_refs": []
+  }
+}

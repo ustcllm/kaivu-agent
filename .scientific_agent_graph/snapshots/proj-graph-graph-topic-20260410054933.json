@@ -1,0 +1,26 @@
+{
+  "snapshot_id": "proj_graph::graph-topic::20260410054933",
+  "project_id": "proj_graph",
+  "topic": "graph topic",
+  "node_ids": [
+    "a1",
+    "artifact::C:/tmp/file.txt",
+    "c1",
+    "causal-graph::proj_graph::graph-topic",
+    "e1",
+    "h1",
+    "n1",
+    "systematic-review::proj_graph::graph-topic"
+  ],
+  "edge_ids": [
+    "c1::supported_by::e1",
+    "c1::supports::e1",
+    "causal-graph::proj_graph::graph-topic::tests::h1",
+    "n1::challenges::h1"
+  ],
+  "metadata": {
+    "step_count": 0,
+    "claim_count": 1,
+    "hypothesis_count": 1
+  }
+}

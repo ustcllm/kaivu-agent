@@ -1,0 +1,14 @@
+{
+  "interpretation_id": "interp::semantic-real-executor",
+  "run_id": "run::semantic-real-executor",
+  "supported_hypothesis_ids": [],
+  "weakened_hypothesis_ids": [
+    "hypothesis::semantic-target"
+  ],
+  "inconclusive_hypothesis_ids": [],
+  "negative_result": true,
+  "claim_updates": [],
+  "confidence": "medium",
+  "next_decision": "revise mechanism and schedule discriminating follow-up",
+  "discipline_payload": {}
+}

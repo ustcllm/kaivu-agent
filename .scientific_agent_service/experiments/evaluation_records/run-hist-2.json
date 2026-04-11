@@ -1,0 +1,23 @@
+{
+  "run_id": "run_hist_2",
+  "project_id": "proj_eval",
+  "group_id": "lab",
+  "topic": "same topic",
+  "evaluation_summary": {
+    "benchmark_readiness": "low"
+  },
+  "termination_strategy_summary": {
+    "human_confirmation_reasons": [
+      "x"
+    ]
+  },
+  "created_at": "2026-04-10T05:09:22.372686+00:00",
+  "comparison_to_previous": {
+    "has_previous": true,
+    "trend": "regressing",
+    "previous_run_id": "run_hist_1",
+    "previous_benchmark_readiness": "medium",
+    "current_benchmark_readiness": "low",
+    "blocker_delta": 1
+  }
+}

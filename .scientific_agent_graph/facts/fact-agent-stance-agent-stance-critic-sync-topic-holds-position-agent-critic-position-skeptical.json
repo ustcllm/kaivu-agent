@@ -1,0 +1,20 @@
+{
+  "fact_id": "fact::agent_stance::agent-stance-critic-sync-topic::holds-position::agent-critic-position-skeptical",
+  "fact_type": "agent_stance",
+  "subject_id": "agent-stance::critic::sync-topic",
+  "predicate": "holds_position",
+  "object_id": "",
+  "value": {
+    "agent": "critic",
+    "position": "skeptical"
+  },
+  "project_id": "p-sync",
+  "topic": "sync topic",
+  "confidence": 1.0,
+  "source_refs": [],
+  "produced_by": "critic",
+  "status": "active",
+  "metadata": {
+    "meeting_state": ""
+  }
+}

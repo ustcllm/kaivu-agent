@@ -1,0 +1,11 @@
+{
+  "edge_id": "specialist-reference::lab_meeting_moderator::sync-topic::5::consulted::claim::1",
+  "source_id": "specialist-reference::lab_meeting_moderator::sync-topic::5",
+  "target_id": "claim::1",
+  "relation": "consulted",
+  "project_id": "p-sync",
+  "topic": "sync topic",
+  "metadata": {
+    "profile_name": "lab_meeting_moderator"
+  }
+}

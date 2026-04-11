@@ -1,0 +1,21 @@
+{
+  "review_id": "qc::semantic-real-executor",
+  "run_id": "run::semantic-real-executor",
+  "quality_control_status": "passed",
+  "issues": [],
+  "possible_artifacts": [],
+  "protocol_deviations": [],
+  "quality_control_checks_run": [
+    "protocol_version_recorded",
+    "success_failure_criteria_recorded",
+    "artifact_provenance_recorded"
+  ],
+  "missing_quality_control_checks": [],
+  "affected_outputs": [],
+  "repeat_required": false,
+  "blocking_severity": "low",
+  "evidence_reliability": "medium",
+  "usable_for_interpretation": true,
+  "recommended_action": "interpret results",
+  "discipline_payload": {}
+}

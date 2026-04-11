@@ -1,0 +1,14 @@
+{
+  "node_id": "c1",
+  "node_type": "claim",
+  "label": "Claim 1",
+  "project_id": "proj_graph",
+  "topic": "graph topic",
+  "metadata": {
+    "global_claim_id": "c1",
+    "statement": "Claim 1",
+    "supports": [
+      "e1"
+    ]
+  }
+}

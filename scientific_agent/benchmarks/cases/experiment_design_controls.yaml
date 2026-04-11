@@ -1,0 +1,19 @@
+case_id: experiment_design_controls
+priority: P1
+category: experiment_execution
+split: regression
+tags:
+  - execution_loop
+  - handoff_contract
+task: Check whether experiment designs include controls, quality gates, handoff contracts, and discipline-native requirements.
+inputs:
+  object_types:
+    - experiment_candidate
+    - discipline_adapter_v2_binding
+expected_outputs:
+  - experiment_execution_loop_summary.execution_queue
+  - run_handoff_contract_summary.contracts
+rubric:
+  - scheduled experiments include quality gates
+  - high-risk experiments require approval
+  - discipline-native contracts are represented

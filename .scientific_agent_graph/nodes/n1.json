@@ -1,0 +1,14 @@
+{
+  "node_id": "n1",
+  "node_type": "negative_result",
+  "label": "Failed route",
+  "project_id": "proj_graph",
+  "topic": "graph topic",
+  "metadata": {
+    "negative_result_id": "n1",
+    "result": "Failed route",
+    "affected_hypothesis_ids": [
+      "h1"
+    ]
+  }
+}

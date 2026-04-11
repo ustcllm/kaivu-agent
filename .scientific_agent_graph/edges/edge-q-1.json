@@ -1,0 +1,9 @@
+{
+  "edge_id": "edge-q-1",
+  "source_id": "claim-q-1",
+  "target_id": "hyp-q-1",
+  "relation": "supports",
+  "project_id": "proj_typed_query",
+  "topic": "typed-query",
+  "metadata": {}
+}

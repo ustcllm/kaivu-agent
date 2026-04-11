@@ -1,0 +1,20 @@
+case_id: executor_handoff_replay
+priority: P1
+category: executor_integration
+split: regression
+tags:
+  - executor
+  - handoff_payload
+  - provenance
+task: Ensure real or dry-run executor outputs normalize into replayable run handoff records.
+inputs:
+  object_types:
+    - executor_run
+    - handoff_payload
+expected_outputs:
+  - executor_run_summary.runs
+  - run_handoff_contract_summary.contracts
+rubric:
+  - executor runs preserve package and experiment identifiers
+  - returned payloads normalize into provenance facts
+  - failed executor attempts become explicit replay evidence

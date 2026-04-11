@@ -1,0 +1,30 @@
+case_id: real_executor_closed_loop
+priority: P0
+category: executor_integration
+split: smoke
+tags:
+  - executor
+  - local_python
+  - experiment_registry
+  - provenance
+  - backpropagation
+task: Ensure a real local executor payload closes the loop across registry, provenance graph, memory, and scheduler feedback.
+inputs:
+  object_types:
+    - execution_package
+    - run_handoff_contract
+    - local_python_executor_payload
+expected_outputs:
+  - executor_run_summary.runs.0.normalized_bundle
+  - executor_run_summary.runs.0.backpropagation_record
+  - executor_run_summary.runs.0.experiment_registry_saved_records
+  - executor_belief_backpropagation_summary.scheduler_feedback
+  - provenance_replay_summary.fact_count
+  - memory_governance_loop_summary.proposed_actions
+rubric:
+  - local executor returns a valid normalized run handoff bundle
+  - experiment registry stores run, observations, quality control, interpretation, assets, bundle, and backpropagation record
+  - provenance graph records executor facts and executor completion event
+  - negative or failed outcomes create explicit backpropagation candidates
+  - affected hypothesis ids come from scheduler target_ids rather than fallback ordering
+  - project memory receives an experiment backpropagation record for later scheduler recall

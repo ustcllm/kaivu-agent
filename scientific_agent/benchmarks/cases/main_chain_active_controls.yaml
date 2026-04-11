@@ -1,0 +1,26 @@
+case_id: main_chain_active_controls
+priority: P0
+category: workflow_control
+split: regression
+tags:
+  - problem_reframer
+  - route_scheduler
+  - active_control
+task: Ensure problem reframing participates in active route scheduling instead of remaining a passive summary.
+inputs:
+  required_context:
+    - scientific_problem_reframer_summary
+    - research_campaign_plan_summary
+    - scheduler_search_kernel_summary
+expected_outputs:
+  - scientific_problem_reframer_summary.reframing_state
+  - scientific_problem_reframer_summary.selected_frame.preferred_next_route
+  - scientific_problem_reframer_summary.scheduler_constraints
+  - research_campaign_plan_summary.route_selector_summary.route_nodes
+  - scheduler_search_kernel_summary.best_research_action_id
+expected_values:
+  scientific_problem_reframer_summary.reframing_state: reframe_recommended
+rubric:
+  - problem reframer emits scheduler constraints
+  - route scheduler consumes reframing pressure as an active route candidate
+  - scheduler search kernel exposes a best research action, not only an experiment id

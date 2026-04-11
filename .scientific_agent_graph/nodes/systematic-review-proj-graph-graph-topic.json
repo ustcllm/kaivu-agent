@@ -1,0 +1,10 @@
+{
+  "node_id": "systematic-review::proj_graph::graph-topic",
+  "node_type": "systematic_review",
+  "label": "RQ",
+  "project_id": "proj_graph",
+  "topic": "graph topic",
+  "metadata": {
+    "review_question": "RQ"
+  }
+}

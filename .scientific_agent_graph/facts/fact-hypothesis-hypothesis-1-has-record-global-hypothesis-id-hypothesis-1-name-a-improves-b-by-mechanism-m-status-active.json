@@ -1,0 +1,19 @@
+{
+  "fact_id": "fact::hypothesis::hypothesis-1::has-record::global-hypothesis-id-hypothesis-1-name-a-improves-b-by-mechanism-m-status-active",
+  "fact_type": "hypothesis",
+  "subject_id": "hypothesis::1",
+  "predicate": "has_record",
+  "object_id": "",
+  "value": {
+    "global_hypothesis_id": "hypothesis::1",
+    "name": "A improves B by mechanism M",
+    "status": "active"
+  },
+  "project_id": "p-sync",
+  "topic": "sync topic",
+  "confidence": 1.0,
+  "source_refs": [],
+  "produced_by": "workflow",
+  "status": "active",
+  "metadata": {}
+}

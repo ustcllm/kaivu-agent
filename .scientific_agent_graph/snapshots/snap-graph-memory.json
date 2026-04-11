@@ -1,0 +1,13 @@
+{
+  "snapshot_id": "snap-graph-memory",
+  "project_id": "proj_graph_memory",
+  "topic": "graph-memory-test",
+  "node_ids": [
+    "hyp-surface-reconstruction",
+    "neg-1"
+  ],
+  "edge_ids": [
+    "edge-1"
+  ],
+  "metadata": {}
+}

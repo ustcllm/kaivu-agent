@@ -1,0 +1,26 @@
+{
+  "fact_id": "fact::interpretation::interpretation-run-dry-pkg-wf::interprets-run::run-dry-pkg-wf",
+  "fact_type": "interpretation",
+  "subject_id": "interpretation::run-dry-pkg-wf",
+  "predicate": "interprets_run",
+  "object_id": "run::dry::pkg-wf",
+  "value": {
+    "interpretation_id": "interpretation::run-dry-pkg-wf",
+    "run_id": "run::dry::pkg-wf",
+    "supported_hypothesis_ids": [],
+    "weakened_hypothesis_ids": [],
+    "inconclusive_hypothesis_ids": [],
+    "negative_result": false,
+    "claim_updates": [],
+    "confidence": "medium",
+    "next_decision": "handoff_to_real_executor_when_approved",
+    "discipline_payload": {}
+  },
+  "project_id": "p-wf-exec",
+  "topic": "wf executor topic",
+  "confidence": 1.0,
+  "source_refs": [],
+  "produced_by": "executor::dry_run",
+  "status": "medium",
+  "metadata": {}
+}

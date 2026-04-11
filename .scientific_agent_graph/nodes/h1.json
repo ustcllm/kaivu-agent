@@ -1,0 +1,11 @@
+{
+  "node_id": "h1",
+  "node_type": "hypothesis",
+  "label": "Hypothesis 1",
+  "project_id": "proj_graph",
+  "topic": "graph topic",
+  "metadata": {
+    "global_hypothesis_id": "h1",
+    "name": "Hypothesis 1"
+  }
+}

@@ -1,0 +1,26 @@
+case_id: literature_ingest_policy
+priority: P0
+category: literature_ingest
+split: regression
+tags:
+  - literature
+  - ingest_policy
+  - digest
+  - governance
+task: Ensure literature ingest mode is represented in workflow state so autonomous and review-gated research can diverge safely.
+inputs:
+  required_context:
+    - literature_ingest_policy_summary
+    - formal_review_record_summary
+    - evidence_review_summary
+expected_outputs:
+  - literature_ingest_policy_summary.mode
+  - literature_ingest_policy_summary.target_scope
+  - literature_ingest_policy_summary.write_target
+  - literature_ingest_policy_summary.requires_confirmation
+  - literature_ingest_policy_summary.needs_review
+  - literature_ingest_policy_summary.reasons
+rubric:
+  - autonomous ingest can proceed without confirmation when risk is low
+  - group or public literature writes are represented as digest or review-gated decisions
+  - ingest policy remains visible to evidence review and formal review records

@@ -1,0 +1,8 @@
+{
+  "node_id": "claim-q-1",
+  "node_type": "claim",
+  "label": "claim about selectivity",
+  "project_id": "proj_typed_query",
+  "topic": "typed-query",
+  "metadata": {}
+}

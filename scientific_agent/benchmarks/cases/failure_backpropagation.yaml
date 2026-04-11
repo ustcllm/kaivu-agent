@@ -1,0 +1,19 @@
+case_id: failure_backpropagation
+priority: P1
+category: failure_learning
+split: regression
+tags:
+  - negative_results
+  - memory_governance
+task: Ensure failed attempts change memory, scheduler constraints, and future hypotheses.
+inputs:
+  object_types:
+    - negative_result
+    - failed_attempt
+expected_outputs:
+  - failure_reuse_engine_summary.recommendations
+  - memory_governance_loop_summary.proposed_actions
+rubric:
+  - repeat failed route is blocked or requires changed conditions
+  - failure memory is reusable by scheduler
+  - affected hypotheses are revised or downgraded

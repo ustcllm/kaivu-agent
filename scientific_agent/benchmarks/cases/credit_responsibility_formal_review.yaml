@@ -1,0 +1,26 @@
+case_id: credit_responsibility_formal_review
+priority: P1
+category: collaboration_governance
+split: regression
+tags:
+  - credit
+  - responsibility
+  - formal_review
+  - lab_meeting
+task: Ensure scientific credit and responsibility covers execution, quality control, formal review, and dissent.
+inputs:
+  required_context:
+    - scientific_credit_responsibility_ledger_summary
+    - formal_review_record_summary
+    - lab_meeting_protocol_summary
+expected_outputs:
+  - scientific_credit_responsibility_ledger_summary.record_count
+  - scientific_credit_responsibility_ledger_summary.records
+  - scientific_credit_responsibility_ledger_summary.credit_by_actor
+  - scientific_credit_responsibility_ledger_summary.responsibility_by_actor
+  - formal_review_record_summary.screening_record_count
+  - formal_review_record_summary.evidence_table_record_count
+rubric:
+  - run manager and quality-control reviewer responsibility is recorded for executable work
+  - formal review screening and evidence curation are credited
+  - formal dissent and lab meeting roles are preserved as scientific contributions

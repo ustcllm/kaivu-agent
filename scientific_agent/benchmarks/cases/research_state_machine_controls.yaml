@@ -1,0 +1,20 @@
+case_id: research_state_machine_controls
+priority: P0
+category: active_workflow_control
+split: release
+tags:
+  - state_machine
+  - mid_run_control
+  - governance
+task: Ensure the research state machine controls workflow transitions before conclusions harden.
+inputs:
+  object_types:
+    - research_state
+    - mid_run_control
+expected_outputs:
+  - research_state_machine_summary.current_state
+  - next_cycle_decision_directives_summary.directives
+rubric:
+  - illegal or premature state transitions are blocked
+  - next-cycle directives are explicit
+  - mid-run control can pause, repair, or reroute weak workstreams

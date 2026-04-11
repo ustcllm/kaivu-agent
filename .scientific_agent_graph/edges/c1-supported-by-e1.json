@@ -1,0 +1,13 @@
+{
+  "edge_id": "c1::supported_by::e1",
+  "source_id": "c1",
+  "target_id": "e1",
+  "relation": "supported_by",
+  "project_id": "proj_graph",
+  "topic": "graph topic",
+  "metadata": {
+    "source": "c1",
+    "target": "e1",
+    "relation": "supported_by"
+  }
+}

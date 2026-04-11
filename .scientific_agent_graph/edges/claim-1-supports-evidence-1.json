@@ -1,0 +1,9 @@
+{
+  "edge_id": "claim::1::supports::evidence::1",
+  "source_id": "claim::1",
+  "target_id": "evidence::1",
+  "relation": "supports",
+  "project_id": "p-sync",
+  "topic": "sync topic",
+  "metadata": {}
+}

@@ -1,0 +1,10 @@
+{
+  "node_id": "hyp-f-1",
+  "node_type": "hypothesis",
+  "label": "finish hypothesis",
+  "project_id": "proj_graph_finish",
+  "topic": "finish",
+  "metadata": {
+    "challenge_count": 1
+  }
+}

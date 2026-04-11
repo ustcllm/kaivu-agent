@@ -1,0 +1,33 @@
+{
+  "fact_id": "fact::quality_control::qc-run-dry-pkg-wf::reviews-run::run-dry-pkg-wf",
+  "fact_type": "quality_control",
+  "subject_id": "qc::run-dry-pkg-wf",
+  "predicate": "reviews_run",
+  "object_id": "run::dry::pkg-wf",
+  "value": {
+    "review_id": "qc::run-dry-pkg-wf",
+    "run_id": "run::dry::pkg-wf",
+    "quality_control_status": "passed",
+    "issues": [],
+    "possible_artifacts": [],
+    "protocol_deviations": [],
+    "quality_control_checks_run": [
+      "protocol_version_recorded"
+    ],
+    "missing_quality_control_checks": [],
+    "affected_outputs": [],
+    "repeat_required": false,
+    "blocking_severity": "low",
+    "evidence_reliability": "medium",
+    "usable_for_interpretation": true,
+    "recommended_action": "ready_for_real_executor_or_result_import",
+    "discipline_payload": {}
+  },
+  "project_id": "p-wf-exec",
+  "topic": "wf executor topic",
+  "confidence": 1.0,
+  "source_refs": [],
+  "produced_by": "executor::dry_run",
+  "status": "passed",
+  "metadata": {}
+}

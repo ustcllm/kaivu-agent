@@ -1,0 +1,10 @@
+{
+  "node_id": "literature-concept::proj_graph::example",
+  "node_type": "literature_concept_page",
+  "label": "example",
+  "project_id": "proj_graph",
+  "topic": "Pressure selectivity topic",
+  "metadata": {
+    "kind": "concept"
+  }
+}

@@ -1,0 +1,611 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Scientific Agent Workbench</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">Scientific Agent</p>
+        <h1>Research Workbench</h1>
+      </div>
+      <div class="topbar-actions">
+        <span id="healthStatus" class="status-pill">Not connected</span>
+        <div class="inline-field topbar-field">
+          <label for="baseUrl">API Base URL</label>
+          <input id="baseUrl" value="http://127.0.0.1:8000" />
+          <button id="saveBaseUrl">Connect</button>
+        </div>
+      </div>
+    </header>
+
+    <main class="app-shell">
+      <aside class="pane pane-left">
+        <section class="card brand-card">
+          <p class="lede">
+            A conversation-first workspace for long-running literature review, hypothesis iteration,
+            evidence tracking, and experiment design.
+          </p>
+          <div class="thread-meta">
+            <div>
+              <span class="meta-label">Thread mode</span>
+              <strong>Conversation-led research</strong>
+            </div>
+            <div>
+              <span class="meta-label">Current run</span>
+              <strong id="currentRunLabel">No active run</strong>
+            </div>
+          </div>
+        </section>
+
+        <section class="card card-fill">
+          <div id="accessStatus" class="access-banner hidden"></div>
+          <div class="card-header">
+            <h2>Research Chat</h2>
+            <span class="helper-pill">Long-running thread</span>
+          </div>
+          <div class="thread-toolbar">
+            <div class="inline-field compact thread-inline">
+              <label for="threadTitleInput">Thread</label>
+              <input id="threadTitleInput" placeholder="Current research thread" />
+            </div>
+            <div class="button-row compact-row">
+              <button id="saveThreadTitle" class="secondary compact">Rename</button>
+              <button id="newThread" class="secondary compact">New Thread</button>
+              <button id="archiveThread" class="secondary compact">Archive</button>
+              <button id="deleteThread" class="secondary compact">Delete</button>
+            </div>
+          </div>
+          <div class="identity-grid">
+            <div>
+              <label for="userIdInput">User ID</label>
+              <input id="userIdInput" placeholder="alice" />
+            </div>
+            <div>
+              <label for="projectIdInput">Project ID</label>
+              <input id="projectIdInput" placeholder="stroke-hypothermia" />
+            </div>
+            <div>
+              <label for="groupIdInput">Group ID</label>
+              <input id="groupIdInput" placeholder="neuro-lab" />
+            </div>
+            <div>
+              <label for="groupRoleInput">Group Role</label>
+              <select id="groupRoleInput">
+                <option value="">unspecified</option>
+                <option value="viewer">viewer</option>
+                <option value="contributor">contributor</option>
+                <option value="curator">curator</option>
+                <option value="admin">admin</option>
+              </select>
+            </div>
+          </div>
+          <div class="button-row compact-row">
+            <button id="saveGroupRole" class="secondary compact">Save Group Role</button>
+          </div>
+          <div class="thread-filter-bar">
+            <input id="threadSearch" placeholder="Search threads" />
+            <label class="toggle compact-toggle">
+              <input type="checkbox" id="showArchivedThreads" />
+              <span>Show archived</span>
+            </label>
+          </div>
+          <div id="threadList" class="thread-list"></div>
+          <section class="thread-summary-card">
+            <div class="card-header">
+              <h3>Thread Snapshot</h3>
+              <span class="helper-pill">Stage summary</span>
+            </div>
+            <div id="threadSnapshot" class="thread-snapshot"></div>
+          </section>
+          <div id="chatTranscript" class="chat-transcript"></div>
+
+          <label for="topic">Prompt</label>
+          <textarea id="topic" rows="7">Can mild hypothermia improve post-ischemic neuronal recovery, and what would be the most discriminative next experiment?</textarea>
+
+          <label class="toggle">
+            <input type="checkbox" id="dynamicRouting" checked />
+            <span>Enable dynamic routing</span>
+          </label>
+
+          <div class="button-row">
+            <button id="runWorkflow">Start Investigation</button>
+            <button class="secondary" data-quick-prompt="Continue the literature review and focus on the strongest primary evidence.">Continue Review</button>
+            <button class="secondary" data-quick-prompt="Refine the current hypotheses so they become more falsifiable.">Refine Hypotheses</button>
+            <button class="secondary" data-quick-prompt="Design the next discriminative experiment using the current evidence.">Design Experiment</button>
+            <button class="secondary" data-quick-prompt="Surface the strongest conflicting evidence and resolve the major disagreements.">Resolve Conflicts</button>
+          </div>
+
+          <p id="runStatus" class="helper">No workflow started.</p>
+        </section>
+      </aside>
+
+      <section class="pane pane-center">
+        <section class="card workspace-card card-fill">
+          <div class="card-header split-header">
+            <div>
+              <h2>Investigation Workspace</h2>
+              <p class="helper">Keep the conversation going while inspecting workflow state, hypotheses, evidence, and draft reports.</p>
+            </div>
+            <div class="run-toolbar">
+              <div class="inline-field compact inline-field-tight">
+                <label for="runIdInput">Run ID</label>
+                <input id="runIdInput" placeholder="Paste run id" />
+              </div>
+              <div class="button-row compact-row">
+                <button id="loadRun" class="secondary">Load Run</button>
+                <button id="loadReport" class="secondary">Load Report</button>
+              </div>
+            </div>
+          </div>
+
+          <div class="tab-row">
+            <button class="tab-button active" data-target="workflowPanel">Workflow</button>
+            <button class="tab-button" data-target="hypothesisPanel">Hypotheses</button>
+            <button class="tab-button" data-target="evidencePanel">Evidence</button>
+            <button class="tab-button" data-target="negativeResultsPanel">Negative Results</button>
+            <button class="tab-button" data-target="reportPanel">Report</button>
+          </div>
+
+          <div id="workflowPanel" class="tab-panel active">
+            <div id="workflowSummary" class="summary-strip">
+              <div class="summary-card">
+                <span class="meta-label">Status</span>
+                <strong>Waiting for a run</strong>
+              </div>
+              <div class="summary-card">
+                <span class="meta-label">Steps</span>
+                <strong>0</strong>
+              </div>
+              <div class="summary-card">
+                <span class="meta-label">Dynamic Routing</span>
+                <strong>Unknown</strong>
+              </div>
+            </div>
+            <div id="workflowDiagnostics" class="diagnostic-grid"></div>
+            <div id="workflowTimeline" class="stack-list timeline-list"></div>
+            <pre id="workflowOutput" class="output tall"></pre>
+          </div>
+
+          <div id="hypothesisPanel" class="tab-panel">
+            <div class="panel-intro">
+              <h3>Hypothesis Board</h3>
+              <p>Track the current working hypotheses and keep them versionable, falsifiable, and tied to evidence.</p>
+            </div>
+            <div id="hypothesisBoard" class="stack-list"></div>
+          </div>
+
+          <div id="evidencePanel" class="tab-panel">
+            <div class="panel-intro">
+              <h3>Evidence Table</h3>
+              <p>Surface claims, supporting evidence, and uncertainties so the thread stays scientific instead of becoming generic chat.</p>
+            </div>
+            <div id="evidenceBoard" class="stack-list"></div>
+          </div>
+
+          <div id="negativeResultsPanel" class="tab-panel">
+            <div class="panel-intro">
+              <h3>Negative Results</h3>
+              <p>Keep failed attempts, null findings, and non-supporting results visible so the workflow does not quietly repeat the same route.</p>
+            </div>
+            <div id="negativeResultsBoard" class="stack-list"></div>
+          </div>
+
+          <div id="reportPanel" class="tab-panel">
+            <div class="panel-intro">
+              <h3>Draft Report</h3>
+              <p>The current report draft updates as workflow runs complete and can evolve across a long research thread.</p>
+            </div>
+            <pre id="reportOutput" class="output tall"></pre>
+          </div>
+        </section>
+      </section>
+
+      <aside class="pane pane-right">
+        <section class="card context-card card-fill">
+          <div class="card-header">
+            <div>
+              <h2>Context Panels</h2>
+              <p class="helper">Memory, graph, usage, and run history stay beside the conversation instead of buried inside chat turns.</p>
+            </div>
+            <div class="button-row compact-row">
+              <button id="loadGraph" class="secondary compact">Graph</button>
+              <button id="loadUsage" class="secondary compact">Usage</button>
+            </div>
+          </div>
+
+          <div class="tab-row">
+            <button class="tab-button active" data-target="memoryPanel">Memory</button>
+            <button class="tab-button" data-target="experimentsPanel">Experiments</button>
+            <button class="tab-button" data-target="graphPanel">Graph</button>
+            <button class="tab-button" data-target="usagePanel">Usage</button>
+            <button class="tab-button" data-target="runsPanel">Runs</button>
+          </div>
+
+          <div id="memoryPanel" class="tab-panel active">
+            <div class="panel-section">
+              <h3>Search</h3>
+              <label for="memoryQuery">Query</label>
+              <input id="memoryQuery" value="hypothermia ischemia confounder" />
+              <div class="memory-filter-grid">
+                <div>
+                  <label for="memoryScopeFilter">Scope</label>
+                  <select id="memoryScopeFilter">
+                    <option value="">all</option>
+                    <option value="personal">personal</option>
+                    <option value="project">project</option>
+                    <option value="group">group</option>
+                    <option value="public">public</option>
+                  </select>
+                </div>
+              </div>
+              <button id="searchMemory">Search</button>
+              <div id="memorySearchList" class="memory-search-list"></div>
+              <pre id="memorySearchOutput" class="output"></pre>
+            </div>
+
+            <div class="panel-section">
+              <div class="card-header">
+                <h3>Proposal Inbox</h3>
+                <button id="loadMemoryProposals" class="secondary compact">Refresh</button>
+              </div>
+              <div class="memory-filter-grid">
+                <div>
+                  <label for="proposalTargetFilter">Target Scope</label>
+                  <select id="proposalTargetFilter">
+                    <option value="">all</option>
+                    <option value="project">project</option>
+                    <option value="group">group</option>
+                    <option value="public">public</option>
+                  </select>
+                </div>
+              </div>
+              <div class="button-row compact-row">
+                <button id="approveSelectedProposals" class="secondary compact">Approve Selected</button>
+                <button id="rejectSelectedProposals" class="secondary compact">Reject Selected</button>
+              </div>
+              <div id="memoryProposalList" class="stack-list"></div>
+              <div id="memoryProposalStatus" class="inline-note">Curator and admin users can review promotion proposals here.</div>
+            </div>
+
+            <div class="panel-section">
+              <div class="card-header">
+                <h3>Audit Timeline</h3>
+              </div>
+              <div id="memoryAuditTimeline" class="stack-list"></div>
+              <div id="memoryAuditStatus" class="inline-note">Select a proposal to inspect its audit timeline.</div>
+            </div>
+
+            <div class="panel-section">
+              <div class="card-header">
+                <h3>Membership</h3>
+                <div class="button-row compact-row">
+                  <button id="loadGroupMembers" class="secondary compact">Group Members</button>
+                  <button id="loadProjectMembers" class="secondary compact">Project Members</button>
+                </div>
+              </div>
+              <div class="memory-filter-grid">
+                <div>
+                  <label for="memberSearch">Search Members</label>
+                  <input id="memberSearch" placeholder="Search by name or user id" />
+                </div>
+                <div>
+                  <label for="memberRoleFilter">Role Filter</label>
+                  <select id="memberRoleFilter">
+                    <option value="">all</option>
+                    <option value="viewer">viewer</option>
+                    <option value="contributor">contributor</option>
+                    <option value="curator">curator</option>
+                    <option value="admin">admin</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="memberSort">Sort</label>
+                  <select id="memberSort">
+                    <option value="role-desc">role high to low</option>
+                    <option value="role-asc">role low to high</option>
+                    <option value="name-asc">name A-Z</option>
+                    <option value="name-desc">name Z-A</option>
+                  </select>
+                </div>
+              </div>
+              <label for="memberUserId">Member User ID</label>
+              <input id="memberUserId" placeholder="alice" />
+              <label for="memberDisplayName">Display Name</label>
+              <input id="memberDisplayName" placeholder="Alice Smith" />
+              <label for="memberRole">Role</label>
+              <select id="memberRole">
+                <option value="viewer">viewer</option>
+                <option value="contributor">contributor</option>
+                <option value="curator">curator</option>
+                <option value="admin">admin</option>
+              </select>
+              <div class="button-row compact-row">
+                <button id="addGroupMember" class="secondary compact">Add To Group</button>
+                <button id="addProjectMember" class="secondary compact">Add To Project</button>
+              </div>
+              <div id="membershipList" class="stack-list"></div>
+              <div id="membershipStatus" class="inline-note">Load group or project members to manage collaboration access.</div>
+            </div>
+
+            <div class="panel-section">
+              <h3>Save</h3>
+              <label for="memoryTitle">Title</label>
+              <input id="memoryTitle" value="Example project memory" />
+              <div class="memory-filter-grid">
+                <div>
+                  <label for="memorySaveScope">Scope</label>
+                  <select id="memorySaveScope">
+                    <option value="project">project</option>
+                    <option value="personal">personal</option>
+                    <option value="group">group</option>
+                    <option value="public">public</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="memorySaveVisibility">Visibility</label>
+                  <select id="memorySaveVisibility">
+                    <option value="private">private</option>
+                    <option value="project">project</option>
+                    <option value="group">group</option>
+                    <option value="public">public</option>
+                  </select>
+                </div>
+              </div>
+              <label for="memorySummary">Summary</label>
+              <input id="memorySummary" value="A manually added scientific memory." />
+              <label for="memoryContent">Content</label>
+              <textarea id="memoryContent" rows="4">This is a manually saved note for testing the workbench.</textarea>
+              <button id="saveMemory">Save Memory</button>
+              <pre id="memorySaveOutput" class="output"></pre>
+            </div>
+
+            <div class="panel-section">
+              <h3>Review</h3>
+              <label for="memoryFilename">Filename</label>
+              <input id="memoryFilename" placeholder="example-memory.md" />
+              <label for="memoryReviewStatus">Status</label>
+              <select id="memoryReviewStatus">
+                <option value="active">active</option>
+                <option value="deprecated">deprecated</option>
+                <option value="rejected">rejected</option>
+                <option value="uncertain">uncertain</option>
+              </select>
+              <button id="reviewMemory">Review Memory</button>
+              <pre id="memoryReviewOutput" class="output"></pre>
+            </div>
+
+            <div class="panel-section">
+              <h3>Promote</h3>
+              <label for="memoryPromoteFilename">Filename</label>
+              <input id="memoryPromoteFilename" placeholder="example-memory.md" />
+              <div class="memory-filter-grid">
+                <div>
+                  <label for="memoryPromoteScope">Target Scope</label>
+                  <select id="memoryPromoteScope">
+                    <option value="project">project</option>
+                    <option value="group">group</option>
+                    <option value="public">public</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="memoryPromoteVisibility">Target Visibility</label>
+                  <select id="memoryPromoteVisibility">
+                    <option value="project">project</option>
+                    <option value="group">group</option>
+                    <option value="public">public</option>
+                  </select>
+                </div>
+              </div>
+              <button id="promoteMemory">Promote Memory</button>
+              <pre id="memoryPromoteOutput" class="output"></pre>
+            </div>
+          </div>
+
+          <div id="graphPanel" class="tab-panel">
+            <div class="panel-intro">
+              <h3>Claim Graph</h3>
+              <p>A lightweight visual map of claims and evidence so long-running threads stay inspectable.</p>
+            </div>
+            <div id="graphVisual" class="graph-visual"></div>
+            <pre id="graphOutput" class="output tall"></pre>
+          </div>
+
+          <div id="experimentsPanel" class="tab-panel">
+            <div class="panel-intro">
+              <h3>Experiments</h3>
+              <p>Manage experiment specifications, protocols, runs, quality control reviews, and interpretation records as first-class research objects.</p>
+            </div>
+
+            <div class="panel-section">
+              <div class="card-header">
+                <h3>Experiment Detail</h3>
+                <span class="helper-pill">Aggregated view</span>
+              </div>
+              <div id="experimentDetail" class="experiment-detail"></div>
+            </div>
+
+            <div class="panel-section">
+              <div class="card-header">
+                <h3>Experiment Specifications</h3>
+                <button id="loadExperimentSpecifications" class="secondary compact">Refresh</button>
+              </div>
+              <label for="experimentSpecificationId">Experiment ID</label>
+              <input id="experimentSpecificationId" placeholder="exp-001" />
+              <label for="experimentSpecificationTitle">Title</label>
+              <input id="experimentSpecificationTitle" placeholder="Catalyst screening experiment" />
+              <div class="memory-filter-grid">
+                <div>
+                  <label for="experimentSpecificationDiscipline">Discipline</label>
+                  <select id="experimentSpecificationDiscipline">
+                    <option value="chemistry">chemistry</option>
+                    <option value="chemical_engineering">chemical_engineering</option>
+                    <option value="physics">physics</option>
+                    <option value="artificial_intelligence">artificial_intelligence</option>
+                    <option value="mathematics">mathematics</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="experimentSpecificationDecisionType">Decision Type</label>
+                  <select id="experimentSpecificationDecisionType">
+                    <option value="validate">validate</option>
+                    <option value="discriminate">discriminate</option>
+                    <option value="optimize">optimize</option>
+                    <option value="reproduce">reproduce</option>
+                    <option value="falsify">falsify</option>
+                  </select>
+                </div>
+              </div>
+              <label for="experimentSpecificationGoal">Goal</label>
+              <textarea id="experimentSpecificationGoal" rows="3" placeholder="Test whether route A improves selectivity over route B."></textarea>
+              <button id="saveExperimentSpecification">Save Experiment Specification</button>
+              <div id="experimentSpecificationsList" class="stack-list"></div>
+            </div>
+
+            <div class="panel-section">
+              <div class="card-header">
+                <h3>Protocols</h3>
+                <button id="loadExperimentalProtocols" class="secondary compact">Refresh</button>
+              </div>
+              <label for="experimentalProtocolId">Protocol ID</label>
+              <input id="experimentalProtocolId" placeholder="protocol-001" />
+              <label for="experimentalProtocolExperimentId">Experiment ID</label>
+              <input id="experimentalProtocolExperimentId" placeholder="exp-001" />
+              <label for="experimentalProtocolVersion">Version</label>
+              <input id="experimentalProtocolVersion" placeholder="v1" />
+              <label for="experimentalProtocolSteps">Steps</label>
+              <textarea id="experimentalProtocolSteps" rows="4" placeholder="One step per line"></textarea>
+              <button id="saveExperimentalProtocol">Save Protocol</button>
+              <div id="experimentalProtocolsList" class="stack-list"></div>
+            </div>
+
+            <div class="panel-section">
+              <div class="card-header">
+                <h3>Runs</h3>
+                <button id="loadExperimentRuns" class="secondary compact">Refresh</button>
+              </div>
+              <label for="experimentRunId">Run ID</label>
+              <input id="experimentRunId" placeholder="run-001" />
+              <div class="memory-filter-grid">
+                <div>
+                  <label for="experimentRunExperimentId">Experiment ID</label>
+                  <input id="experimentRunExperimentId" placeholder="exp-001" />
+                </div>
+                <div>
+                  <label for="experimentRunProtocolId">Protocol ID</label>
+                  <input id="experimentRunProtocolId" placeholder="protocol-001" />
+                </div>
+              </div>
+              <div class="memory-filter-grid">
+                <div>
+                  <label for="experimentRunStatus">Status</label>
+                  <select id="experimentRunStatus">
+                    <option value="planned">planned</option>
+                    <option value="approved">approved</option>
+                    <option value="running">running</option>
+                    <option value="completed">completed</option>
+                    <option value="quality_control_failed">quality_control_failed</option>
+                    <option value="analyzed">analyzed</option>
+                    <option value="archived">archived</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="experimentRunOperator">Operator</label>
+                  <input id="experimentRunOperator" placeholder="alice" />
+                </div>
+              </div>
+              <button id="saveExperimentRun">Save Run</button>
+              <div id="experimentRunsList" class="stack-list"></div>
+            </div>
+
+            <div class="panel-section">
+              <div class="card-header">
+                <h3>Quality Control Reviews</h3>
+                <button id="loadQualityControlReviews" class="secondary compact">Refresh</button>
+              </div>
+              <label for="qualityControlReviewId">Review ID</label>
+              <input id="qualityControlReviewId" placeholder="review-001" />
+              <div class="memory-filter-grid">
+                <div>
+                  <label for="qualityControlReviewRunId">Run ID</label>
+                  <input id="qualityControlReviewRunId" placeholder="run-001" />
+                </div>
+                <div>
+                  <label for="qualityControlReviewExperimentId">Experiment ID</label>
+                  <input id="qualityControlReviewExperimentId" placeholder="exp-001" />
+                </div>
+              </div>
+              <div class="memory-filter-grid">
+                <div>
+                  <label for="qualityControlReviewStatus">Quality Control Status</label>
+                  <select id="qualityControlReviewStatus">
+                    <option value="passed">passed</option>
+                    <option value="warning">warning</option>
+                    <option value="failed">failed</option>
+                  </select>
+                </div>
+                <div>
+                  <label for="qualityControlReviewReliability">Evidence Reliability</label>
+                  <select id="qualityControlReviewReliability">
+                    <option value="high">high</option>
+                    <option value="medium">medium</option>
+                    <option value="low">low</option>
+                  </select>
+                </div>
+              </div>
+              <label for="qualityControlReviewAction">Recommended Action</label>
+              <textarea id="qualityControlReviewAction" rows="3" placeholder="Repeat with recalibrated instrument."></textarea>
+              <button id="saveQualityControlReview">Save Quality Control Review</button>
+              <div id="qualityControlReviewsList" class="stack-list"></div>
+            </div>
+
+            <div class="panel-section">
+              <div class="card-header">
+                <h3>Interpretations</h3>
+                <button id="loadInterpretationRecords" class="secondary compact">Refresh</button>
+              </div>
+              <label for="interpretationRecordId">Interpretation ID</label>
+              <input id="interpretationRecordId" placeholder="interpretation-001" />
+              <div class="memory-filter-grid">
+                <div>
+                  <label for="interpretationRunId">Run ID</label>
+                  <input id="interpretationRunId" placeholder="run-001" />
+                </div>
+                <div>
+                  <label for="interpretationExperimentId">Experiment ID</label>
+                  <input id="interpretationExperimentId" placeholder="exp-001" />
+                </div>
+              </div>
+              <label for="interpretationDecision">Next Decision</label>
+              <textarea id="interpretationDecision" rows="3" placeholder="Repeat with lower temperature and stronger control condition."></textarea>
+              <label class="toggle">
+                <input type="checkbox" id="interpretationNegativeResult" />
+                <span>Negative Result</span>
+              </label>
+              <button id="saveInterpretationRecord">Save Interpretation</button>
+              <div id="interpretationRecordsList" class="stack-list"></div>
+            </div>
+          </div>
+
+          <div id="usagePanel" class="tab-panel">
+            <div id="usageSummaryCards" class="diagnostic-grid"></div>
+            <pre id="usageOutput" class="output tall"></pre>
+          </div>
+
+          <div id="runsPanel" class="tab-panel">
+            <div class="card-header">
+              <h3>Run History</h3>
+              <button id="refreshRuns" class="secondary compact">Refresh</button>
+            </div>
+            <div id="runsList" class="run-list"></div>
+          </div>
+        </section>
+      </aside>
+    </main>
+
+    <script src="./app.js"></script>
+  </body>
+</html>

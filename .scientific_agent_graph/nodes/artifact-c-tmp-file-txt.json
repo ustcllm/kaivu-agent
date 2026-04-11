@@ -1,0 +1,10 @@
+{
+  "node_id": "artifact::C:/tmp/file.txt",
+  "node_type": "artifact",
+  "label": "file.txt",
+  "project_id": "proj_graph",
+  "topic": "graph topic",
+  "metadata": {
+    "path": "C:/tmp/file.txt"
+  }
+}

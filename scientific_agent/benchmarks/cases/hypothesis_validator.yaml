@@ -1,0 +1,19 @@
+case_id: hypothesis_validator
+priority: P0
+category: hypothesis_quality
+split: release
+tags:
+  - validators
+  - hypothesis_gate
+task: Validate whether generated hypotheses are novel, falsifiable, testable, mechanistic, and evidence-grounded.
+inputs:
+  object_types:
+    - hypothesis
+    - evidence
+expected_outputs:
+  - hypothesis_validation_summary.records
+  - hypothesis_gate_summary.records
+rubric:
+  - weak falsifiability is flagged
+  - weak testability blocks or revises expensive experiments
+  - validator decisions affect scheduler constraints

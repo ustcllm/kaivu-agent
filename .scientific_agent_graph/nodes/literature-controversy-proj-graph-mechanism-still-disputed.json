@@ -1,0 +1,10 @@
+{
+  "node_id": "literature-controversy::proj_graph::mechanism-still-disputed",
+  "node_type": "literature_controversy_page",
+  "label": "Mechanism still disputed",
+  "project_id": "proj_graph",
+  "topic": "Pressure selectivity topic",
+  "metadata": {
+    "kind": "controversy"
+  }
+}

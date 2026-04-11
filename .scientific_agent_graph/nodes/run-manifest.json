@@ -1,0 +1,12 @@
+{
+  "node_id": "run-manifest",
+  "node_type": "run_manifest",
+  "label": "run manifest sync-topic",
+  "project_id": "p-sync",
+  "topic": "sync topic",
+  "metadata": {
+    "generated_at": "",
+    "tools_used": [],
+    "models_used": []
+  }
+}

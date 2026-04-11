@@ -1,0 +1,29 @@
+case_id: risk_permission_state_machine
+priority: P0
+category: governance
+split: regression
+tags:
+  - risk_permission
+  - executor
+  - state_machine
+  - governance
+task: Ensure risk permissions hard-block unsafe non-dry-run execution and move the research state machine into governance.
+inputs:
+  required_context:
+    - experiment_risk_permission_summary
+    - executor_run_summary
+    - research_state_machine_summary
+expected_outputs:
+  - experiment_risk_permission_summary.permission_state
+  - experiment_risk_permission_summary.required_approvals
+  - executor_run_summary.policy_state
+  - research_state_machine_summary.current_state
+  - research_state_machine_summary.transition_guards
+expected_values:
+  executor_run_summary.policy_state: blocked_by_risk_permission
+  research_state_machine_summary.current_state: human_governance
+  research_state_machine_summary.transition_guards: contains:experiment_risk_permission_must_clear
+rubric:
+  - high-risk or approval-sensitive experiments do not run through a real executor without approval
+  - state machine records human governance as the active state
+  - transition guards include risk permission clearance

@@ -1,0 +1,22 @@
+case_id: provenance_replay
+priority: P0
+category: provenance_replay
+split: release
+tags:
+  - provenance
+  - reproducibility
+task: Trace a conclusion back through evidence, agents, model usage, artifacts, memory, and runtime events.
+inputs:
+  object_types:
+    - claim
+    - hypothesis
+    - artifact
+    - runtime_event
+expected_outputs:
+  - unified_provenance_graph_summary.nodes
+  - unified_provenance_graph_summary.edges
+  - reproducibility_kernel_summary.replay_contract
+rubric:
+  - claims link to evidence or provenance references
+  - artifacts are represented in the graph
+  - replay blockers are explicit

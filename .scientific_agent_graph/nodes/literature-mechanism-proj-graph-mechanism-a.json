@@ -1,0 +1,11 @@
+{
+  "node_id": "literature-mechanism::proj_graph::mechanism-a",
+  "node_type": "literature_mechanism_page",
+  "label": "Mechanism A",
+  "project_id": "proj_graph",
+  "topic": "Pressure selectivity topic",
+  "metadata": {
+    "family": "family-a",
+    "kind": "mechanism"
+  }
+}

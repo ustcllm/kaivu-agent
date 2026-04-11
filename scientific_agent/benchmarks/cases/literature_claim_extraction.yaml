@@ -1,0 +1,19 @@
+case_id: literature_claim_extraction
+priority: P1
+category: literature_synthesis
+split: regression
+tags:
+  - literature
+  - claims
+task: Extract normalized scientific claims from literature evidence.
+inputs:
+  source_types:
+    - paper
+    - review
+expected_outputs:
+  - claim_graph.claims
+  - literature_claim_compiler_summary.records
+rubric:
+  - claims preserve evidence boundaries
+  - conflicting claims are not merged without a contradiction record
+  - source references remain traceable

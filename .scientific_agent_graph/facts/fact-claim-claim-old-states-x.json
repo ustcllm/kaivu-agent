@@ -1,0 +1,15 @@
+{
+  "fact_id": "fact::claim::claim-old::states::x",
+  "fact_type": "claim",
+  "subject_id": "claim-old",
+  "predicate": "states",
+  "object_id": "",
+  "value": "Old claim from prior run",
+  "project_id": "p-replay-merge",
+  "topic": "merge topic",
+  "confidence": 1.0,
+  "source_refs": [],
+  "produced_by": "",
+  "status": "active",
+  "metadata": {}
+}

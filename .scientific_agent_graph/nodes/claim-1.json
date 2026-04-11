@@ -1,0 +1,14 @@
+{
+  "node_id": "claim::1",
+  "node_type": "claim",
+  "label": "A improves B",
+  "project_id": "p-sync",
+  "topic": "sync topic",
+  "metadata": {
+    "global_claim_id": "claim::1",
+    "statement": "A improves B",
+    "supports": [
+      "evidence::1"
+    ]
+  }
+}

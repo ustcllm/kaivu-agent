@@ -1,0 +1,100 @@
+{
+  "backpropagation_id": "backpropagation::run-semantic-real-executor",
+  "bundle_id": "run-handoff-bundle::run-semantic-real-executor",
+  "run_id": "run::semantic-real-executor",
+  "experiment_id": "exp::semantic-real-executor",
+  "propagation_state": "negative_result_backpropagation_required",
+  "saved_records": {
+    "experiment_runs": [
+      "run::semantic-real-executor"
+    ],
+    "observation_records": [
+      "obs::semantic-real-executor::1"
+    ],
+    "quality_control_reviews": [
+      "qc::semantic-real-executor"
+    ],
+    "interpretation_records": [
+      "interp::semantic-real-executor"
+    ],
+    "research_assets": [
+      "asset::semantic-real-executor::metrics"
+    ],
+    "handoff_bundles": [
+      "run-handoff-bundle::run-semantic-real-executor"
+    ]
+  },
+  "negative_result_candidates": [
+    {
+      "negative_result_id": "negative-result::run-semantic-real-executor",
+      "result": "Run returned a negative or hypothesis-weakening result.",
+      "why_it_failed_or_did_not_support": "revise mechanism and schedule discriminating follow-up",
+      "implication": "Update hypothesis status, failure memory, and future scheduling constraints.",
+      "affected_hypothesis_ids": [
+        "hypothesis::semantic-target"
+      ],
+      "source_run_id": "run::semantic-real-executor",
+      "source_experiment_id": "exp::semantic-real-executor",
+      "source": "run_handoff_backpropagation"
+    }
+  ],
+  "claim_update_candidates": [],
+  "asset_lineage_updates": [
+    {
+      "asset_id": "asset::semantic-real-executor::metrics",
+      "run_id": "run::semantic-real-executor",
+      "experiment_id": "exp::semantic-real-executor",
+      "path_or_reference": "executor://semantic-real-executor/metrics.json",
+      "governance_status": "fixture"
+    }
+  ],
+  "memory_updates": [
+    {
+      "filename": "experiment-run-run-semantic-real-executor.md",
+      "kind": "experiment",
+      "summary": "Run run::semantic-real-executor status=completed"
+    },
+    {
+      "filename": "quality-control-qc-semantic-real-executor.md",
+      "kind": "reference",
+      "summary": "Quality control status=passed"
+    },
+    {
+      "filename": "interpretation-interp-semantic-real-executor.md",
+      "kind": "decision",
+      "summary": "Negative result=True"
+    },
+    {
+      "filename": "negative-result-run-semantic-real-executor.md",
+      "kind": "negative_result",
+      "summary": "Run returned a negative or hypothesis-weakening result."
+    }
+  ],
+  "event_candidates": [
+    {
+      "event_type": "experiment_run_persisted",
+      "asset_type": "experiment_run",
+      "asset_id": "run::semantic-real-executor",
+      "action": "completed"
+    },
+    {
+      "event_type": "quality_control_persisted",
+      "asset_type": "quality_control_review",
+      "asset_id": "qc::semantic-real-executor",
+      "action": "passed"
+    },
+    {
+      "event_type": "interpretation_persisted",
+      "asset_type": "interpretation_record",
+      "asset_id": "interp::semantic-real-executor",
+      "action": "negative_result"
+    },
+    {
+      "event_type": "negative_result_candidate_created",
+      "asset_type": "negative_result",
+      "asset_id": "negative-result::run-semantic-real-executor",
+      "action": "candidate_created"
+    }
+  ],
+  "validation_errors": []
+}

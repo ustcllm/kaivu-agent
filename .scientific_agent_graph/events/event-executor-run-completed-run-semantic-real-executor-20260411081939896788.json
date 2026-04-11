@@ -1,0 +1,22 @@
+{
+  "event_id": "event::executor_run_completed::run-semantic-real-executor::20260411081939896788",
+  "event_type": "executor_run_completed",
+  "fact_ids": [
+    "fact::experiment::exp-semantic-real-executor::executed-as::run-semantic-real-executor",
+    "fact::experiment_run::run-semantic-real-executor::returned-bundle::run-handoff-bundle-run-semantic-real-executor",
+    "fact::observation::obs-semantic-real-executor-1::observed-in-run::run-semantic-real-executor",
+    "fact::quality_control::qc-semantic-real-executor::reviews-run::run-semantic-real-executor",
+    "fact::interpretation::interp-semantic-real-executor::interprets-run::run-semantic-real-executor",
+    "fact::artifact::asset-semantic-real-executor-metrics::produced-by-run::run-semantic-real-executor"
+  ],
+  "project_id": "semantic-real-executor-project-fixture",
+  "topic": "semantic real executor loop fixture",
+  "actor": "executor::local_python",
+  "action": "execute_package",
+  "metadata": {
+    "package_id": "pkg::semantic-real-executor-fixture",
+    "experiment_id": "exp::semantic-real-executor",
+    "bundle_id": "run-handoff-bundle::run-semantic-real-executor",
+    "validation_state": "valid"
+  }
+}

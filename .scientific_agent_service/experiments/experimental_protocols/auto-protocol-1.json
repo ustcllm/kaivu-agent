@@ -1,0 +1,20 @@
+{
+  "protocol_id": "auto-protocol-1",
+  "experiment_id": "auto-exp-1",
+  "version": "v1",
+  "inputs": [],
+  "controls": [],
+  "steps": [
+    "mix",
+    "measure"
+  ],
+  "measurement_plan": [],
+  "expected_outputs": [],
+  "risk_points": [],
+  "quality_control_checks": [],
+  "discipline_payload": {},
+  "user_id": "alice",
+  "project_id": "proj-auto",
+  "group_id": "chem-lab",
+  "group_role": "contributor"
+}
