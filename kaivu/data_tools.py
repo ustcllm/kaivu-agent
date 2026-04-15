@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import csv
 import math
@@ -223,3 +223,5 @@ class PlotCsvTool(Tool):
         plt.savefig(output_path)
         plt.close()
         return {"output_path": str(output_path), "points": len(y_values)}
+
+

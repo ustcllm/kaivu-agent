@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 import os
@@ -37,16 +37,16 @@ class ModelBackend(ABC):
 
 class StubScienceModel(ModelBackend):
     """
-    一个不依赖外部 API 的演示模型。
-    规则很简单，但足够演示智能体循环和工具调用。
+    A deterministic demo model that does not depend on external APIs.
+    The rules are intentionally simple but enough to demonstrate tool loops.
     """
 
     async def decide(self, messages: list[Message], tools: list[dict[str, Any]]) -> AgentAction:
         last = messages[-1]
         if last.role == "user":
-            if "文件" in last.content or "read" in last.content.lower():
+            if "file" in last.content.lower() or "read" in last.content.lower():
                 return AgentAction(
-                    message="我先读取文件再继续。",
+                    message="I will read the file first, then continue.",
                     tool_calls=[
                         ToolCall(
                             id=uuid4().hex,
@@ -55,9 +55,9 @@ class StubScienceModel(ModelBackend):
                         )
                     ],
                 )
-            if "python" in last.content.lower() or "计算" in last.content:
+            if "python" in last.content.lower() or "calculate" in last.content.lower():
                 return AgentAction(
-                    message="我先用 Python 做一次计算。",
+                    message="I will run a small Python calculation first.",
                     tool_calls=[
                         ToolCall(
                             id=uuid4().hex,
@@ -69,7 +69,7 @@ class StubScienceModel(ModelBackend):
                     ],
                 )
             return AgentAction(
-                message="我先记录一个实验观察。",
+                message="I will record an initial observation first.",
                 tool_calls=[
                     ToolCall(
                         id=uuid4().hex,
@@ -86,11 +86,11 @@ class StubScienceModel(ModelBackend):
         tool_messages = [m for m in messages if m.role == "tool"]
         if tool_messages:
             return AgentAction(
-                message=f"已完成一步工具调用。最新结果如下：\n{tool_messages[-1].content}",
+                message=f"Completed one tool call. Latest result:\n{tool_messages[-1].content}",
                 final=True,
             )
 
-        return AgentAction(message="没有更多动作。", final=True)
+        return AgentAction(message="No further action.", final=True)
 
 
 class OpenAIResponsesModel(ModelBackend):
@@ -302,3 +302,5 @@ def _normalize_pricing_model_name(model_name: str) -> str:
         if lowered == known or lowered.startswith(f"{known}-"):
             return known
     return lowered
+
+

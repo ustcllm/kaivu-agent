@@ -517,3 +517,5 @@ def _slugify(value: str) -> str:
         safe = safe.replace("--", "-")
     return safe.strip("-") or "asset"
 
+
+

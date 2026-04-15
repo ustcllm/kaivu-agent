@@ -955,3 +955,5 @@ def _research_workspace_layout(context: ToolContext) -> ResearchWorkspaceLayout:
     layout.ensure()
     return layout
 
+
+

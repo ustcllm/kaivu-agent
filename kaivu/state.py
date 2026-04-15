@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -76,3 +76,5 @@ class AgentState:
             6,
         )
         totals["rounds"] += 1
+
+

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 from typing import Any
@@ -58,3 +58,5 @@ def _parse_jsonish(value: Any) -> dict[str, Any] | None:
     if value is None:
         return None
     return None
+
+

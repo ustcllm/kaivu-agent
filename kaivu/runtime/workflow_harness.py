@@ -5,6 +5,11 @@ from pathlib import Path
 from typing import Any
 
 from .events import RuntimeEventStream
+from .learning import (
+    ScientificLearningEpisodeStore,
+    build_learning_episode_summary,
+    build_scientific_learning_episode,
+)
 from .session import RuntimeSession
 from .trajectory import RuntimeTrajectory, TrajectoryStore
 
@@ -15,14 +20,23 @@ class WorkflowHarnessRun:
     session: RuntimeSession
     events: list[dict[str, Any]]
     trajectory_path: str
+    learning_episode_path: str = ""
 
 
 class ScientificRuntimeHarness:
-    def __init__(self, *, root: str | Path, trajectory_dir: str | Path | None = None) -> None:
+    def __init__(
+        self,
+        *,
+        root: str | Path,
+        runtime_dir: str | Path | None = None,
+        trajectory_dir: str | Path | None = None,
+        learning_dir: str | Path | None = None,
+    ) -> None:
         self.root = Path(root).resolve()
-        self.runtime_dir = self.root / ".state" / "runtime"
+        self.runtime_dir = Path(runtime_dir).resolve() if runtime_dir else self.root / ".state" / "runtime"
         self.runtime_dir.mkdir(parents=True, exist_ok=True)
         self.trajectory_store = TrajectoryStore(trajectory_dir or self.runtime_dir / "trajectories")
+        self.learning_store = ScientificLearningEpisodeStore(learning_dir or self.runtime_dir / "learning")
 
     async def run_workflow(
         self,
@@ -110,21 +124,42 @@ class ScientificRuntimeHarness:
             research_state=getattr(result, "research_state", {}),
             claim_graph=getattr(result, "claim_graph", {}),
         )
+        learning_episode = build_scientific_learning_episode(
+            session=runtime_session,
+            events=stream.snapshot(),
+            result=result,
+            trajectory_path=str(trajectory_path),
+            replay_case_path=str(replay_case_path),
+        )
+        learning_episode_path = self.learning_store.append(learning_episode)
+        learning_episode_snapshot_path = self.learning_store.save(learning_episode)
+        benchmark_seed_path = self.learning_store.append_benchmark_seed(learning_episode)
         if hasattr(result, "research_state") and isinstance(result.research_state, dict):
             result.research_state["runtime_harness_summary"] = {
                 "session_id": runtime_session.session_id,
                 "event_path": str(event_path),
                 "trajectory_path": str(trajectory_path),
                 "replay_case_path": str(replay_case_path),
+                "learning_episode_path": str(learning_episode_path),
+                "learning_episode_snapshot_path": str(learning_episode_snapshot_path),
+                "benchmark_seed_path": str(benchmark_seed_path),
                 "event_count": len(stream.snapshot()),
             }
+            result.research_state["scientific_learning_layer_summary"] = build_learning_episode_summary(
+                learning_episode
+            )
         if hasattr(result, "claim_graph") and isinstance(result.claim_graph, dict):
             result.claim_graph["runtime_harness_summary"] = getattr(result, "research_state", {}).get("runtime_harness_summary", {})
+            result.claim_graph["scientific_learning_layer_summary"] = getattr(result, "research_state", {}).get(
+                "scientific_learning_layer_summary",
+                {},
+            )
         return WorkflowHarnessRun(
             result=result,
             session=runtime_session,
             events=stream.snapshot(),
             trajectory_path=str(trajectory_path),
+            learning_episode_path=str(learning_episode_path),
         )
 
     def _emit_tool_events(self, stream: RuntimeEventStream, session: RuntimeSession, result: Any) -> None:
@@ -401,4 +436,6 @@ class ScientificRuntimeHarness:
             else:
                 counts[f"{key}_count"] = 0
         return counts
+
+
 

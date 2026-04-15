@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any
 
@@ -176,3 +176,5 @@ def _action_for_reframer_route(route: str) -> str:
     if "integration" in normalized or "meeting" in normalized:
         return "hold_lab_meeting"
     return "refine_hypothesis"
+
+

@@ -3,6 +3,7 @@
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+import json
 import re
 from typing import Any, Literal
 
@@ -484,6 +485,119 @@ class MemoryManager:
             )
         ]
 
+    def compact_memories(
+        self,
+        *,
+        user_id: str | None = None,
+        project_id: str | None = None,
+        group_id: str | None = None,
+        scopes: list[str] | None = None,
+        max_groups: int = 20,
+        dry_run: bool = False,
+        semantic_guard: bool = True,
+    ) -> dict[str, Any]:
+        records = self.list_memories(
+            user_id=user_id,
+            project_id=project_id,
+            group_id=group_id,
+            scopes=scopes,
+        )
+        active_records = [record for record in records if record.status not in {"rejected", "deprecated"}]
+        groups = self._group_compaction_candidates(active_records)[: max(1, max_groups)]
+        archive_dir = self.shared_memory_dir / "archive" / datetime.now(timezone.utc).strftime("%Y%m%d")
+        actions: list[dict[str, Any]] = []
+        skipped: list[dict[str, Any]] = []
+        rollback_records: list[dict[str, Any]] = []
+        for group in groups:
+            if len(group) < 2:
+                continue
+            guard = self._compaction_semantic_guard(group)
+            if semantic_guard and not guard["allowed"]:
+                skipped.append(
+                    {
+                        "records": [str(record.path) for record in group],
+                        "reason": guard["reason"],
+                        "details": guard,
+                    }
+                )
+                continue
+            primary = self._select_compaction_primary(group)
+            secondary = [record for record in group if record.path != primary.path]
+            action = {
+                "primary": str(primary.path),
+                "secondary": [str(record.path) for record in secondary],
+                "title": primary.title,
+                "scope": primary.scope,
+                "kind": primary.kind,
+                "guard": guard,
+                "action": "would_compact" if dry_run else "compacted",
+            }
+            actions.append(action)
+            if dry_run:
+                continue
+            archive_dir.mkdir(parents=True, exist_ok=True)
+            distill_content = self._render_compacted_memory(primary, secondary)
+            compacted_path = self.save_memory(
+                title=f"Compacted memory: {primary.title}",
+                summary=primary.summary or f"Compacted from {len(group)} related memory records",
+                kind=primary.kind,
+                scope=primary.scope,
+                content=distill_content,
+                tags=sorted(set(primary.tags + ["compacted-memory"])),
+                source_refs=[str(record.path.relative_to(self.shared_memory_dir)) for record in group],
+                evidence_level=primary.evidence_level,
+                confidence=primary.confidence,
+                status="active",
+                owner_agent="memory_compaction_engine",
+                user_id=primary.user_id,
+                project_id=primary.project_id,
+                group_id=primary.group_id,
+                visibility=primary.visibility,
+                promotion_status=primary.promotion_status,
+                derived_from=[record.path.name for record in group],
+                validated_by=["memory-compaction-engine"],
+            )
+            rollback_record = {
+                "compacted_path": str(compacted_path),
+                "primary_path": str(primary.path),
+                "archived": [],
+                "guard": guard,
+            }
+            for record in secondary:
+                target = archive_dir / record.path.name
+                counter = 1
+                while target.exists():
+                    target = archive_dir / f"{record.path.stem}-{counter}{record.path.suffix}"
+                    counter += 1
+                try:
+                    record.path.replace(target)
+                except OSError:
+                    continue
+                rollback_record["archived"].append({"from": str(record.path), "to": str(target)})
+                self._append_memory_log(
+                    "archive_compacted",
+                    target,
+                    {"source": str(record.path), "primary": primary.path.name},
+                )
+            rollback_records.append(rollback_record)
+        if not dry_run:
+            rollback_path = self._write_compaction_rollback_manifest(rollback_records)
+            self._rebuild_entrypoint()
+        else:
+            rollback_path = None
+        return {
+            "ok": True,
+            "dry_run": dry_run,
+            "semantic_guard": semantic_guard,
+            "candidate_group_count": len(groups),
+            "action_count": len(actions),
+            "skipped_count": len(skipped),
+            "archive_dir": str(archive_dir),
+            "rollback_manifest_path": str(rollback_path) if rollback_path is not None else "",
+            "actions": actions,
+            "skipped": skipped,
+        }
+
     def find_relevant_memories(
         self,
         query: str,
@@ -954,6 +1068,135 @@ class MemoryManager:
             )
         return records
 
+    def _group_compaction_candidates(self, records: list[MemoryRecord]) -> list[list[MemoryRecord]]:
+        buckets: dict[tuple[str, str, str, str], list[MemoryRecord]] = {}
+        for record in records:
+            signature_terms = sorted(
+                self._terms(" ".join([record.title, record.summary, " ".join(record.tags)]))
+            )[:6]
+            if not signature_terms:
+                continue
+            key = (
+                record.scope,
+                record.kind,
+                record.project_id or record.group_id or record.user_id,
+                "-".join(signature_terms[:4]),
+            )
+            buckets.setdefault(key, []).append(record)
+        groups = [group for group in buckets.values() if len(group) >= 2]
+        return sorted(groups, key=lambda group: (len(group), max(len(item.excerpt) for item in group)), reverse=True)
+
+    def _compaction_semantic_guard(self, records: list[MemoryRecord]) -> dict[str, Any]:
+        scopes = {record.scope for record in records}
+        kinds = {record.kind for record in records}
+        projects = {record.project_id for record in records}
+        groups = {record.group_id for record in records}
+        users = {record.user_id for record in records}
+        if len(scopes) > 1:
+            return {"allowed": False, "reason": "mixed scopes", "scopes": sorted(scopes)}
+        if len(kinds) > 1:
+            return {"allowed": False, "reason": "mixed memory kinds", "kinds": sorted(kinds)}
+        if len(projects) > 1:
+            return {"allowed": False, "reason": "mixed project ids", "project_ids": sorted(projects)}
+        if len(groups) > 1:
+            return {"allowed": False, "reason": "mixed group ids", "group_ids": sorted(groups)}
+        if len(users) > 1 and next(iter(scopes)) == "personal":
+            return {"allowed": False, "reason": "mixed personal owners", "user_ids": sorted(users)}
+        filenames = {record.path.name for record in records}
+        for record in records:
+            if record.conflicts_with and any(name in filenames for name in record.conflicts_with):
+                return {"allowed": False, "reason": "records conflict with each other", "record": record.path.name}
+            if record.superseded_by and record.superseded_by in filenames:
+                return {"allowed": False, "reason": "supersession relationship inside candidate group", "record": record.path.name}
+            if any(name in filenames for name in record.supersedes):
+                return {"allowed": False, "reason": "supersession relationship inside candidate group", "record": record.path.name}
+        evidence_ranks = {level: index for index, level in enumerate(["low", "medium", "high"])}
+        confidence_ranks = {level: index for index, level in enumerate(["low", "medium", "high"])}
+        evidence_values = [evidence_ranks.get(record.evidence_level, 1) for record in records]
+        confidence_values = [confidence_ranks.get(record.confidence, 1) for record in records]
+        if max(evidence_values) - min(evidence_values) > 1:
+            return {"allowed": False, "reason": "evidence levels differ too much"}
+        if max(confidence_values) - min(confidence_values) > 1:
+            return {"allowed": False, "reason": "confidence levels differ too much"}
+        similarities = self._pairwise_similarity_scores(records)
+        min_similarity = min(similarities) if similarities else 1.0
+        if min_similarity < 0.35:
+            return {"allowed": False, "reason": "semantic overlap too low", "min_similarity": round(min_similarity, 4)}
+        return {
+            "allowed": True,
+            "reason": "safe_to_compact",
+            "min_similarity": round(min_similarity, 4),
+            "record_count": len(records),
+        }
+
+    def _pairwise_similarity_scores(self, records: list[MemoryRecord]) -> list[float]:
+        scores: list[float] = []
+        term_sets = [
+            self._terms(" ".join([record.title, record.summary, " ".join(record.tags), record.excerpt]))
+            for record in records
+        ]
+        for index, left in enumerate(term_sets):
+            for right in term_sets[index + 1 :]:
+                if not left or not right:
+                    scores.append(0.0)
+                    continue
+                scores.append(len(left.intersection(right)) / max(1, len(left.union(right))))
+        return scores
+
+    def _write_compaction_rollback_manifest(self, rollback_records: list[dict[str, Any]]) -> Path:
+        manifest_dir = self.state_root / "memory_compaction"
+        manifest_dir.mkdir(parents=True, exist_ok=True)
+        path = manifest_dir / f"rollback-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}.json"
+        payload = {
+            "kind": "memory_compaction_rollback_manifest",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "memory_root": str(self.shared_memory_dir),
+            "record_count": len(rollback_records),
+            "records": rollback_records,
+            "restore_note": "Move archived files back to their original `from` paths and remove compacted_path if rollback is needed.",
+        }
+        path.write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+        return path
+
+    def _select_compaction_primary(self, records: list[MemoryRecord]) -> MemoryRecord:
+        return sorted(
+            records,
+            key=lambda record: (
+                STATUS_WEIGHTS.get(record.status, 0.0),
+                EVIDENCE_WEIGHTS.get(record.evidence_level, 1.0),
+                CONFIDENCE_WEIGHTS.get(record.confidence, 1.0),
+                len(record.excerpt),
+            ),
+            reverse=True,
+        )[0]
+
+    def _render_compacted_memory(self, primary: MemoryRecord, secondary: list[MemoryRecord]) -> str:
+        lines = [
+            "# Compacted Memory",
+            "",
+            f"Primary memory: `{primary.path.name}`",
+            f"Scope: `{primary.scope}`",
+            f"Type: `{primary.kind}`",
+            "",
+            "## Summary",
+            primary.summary or primary.excerpt,
+            "",
+            "## Consolidated Evidence",
+            f"- {primary.title}: {primary.excerpt[:500]}",
+        ]
+        for record in secondary[:20]:
+            lines.append(f"- {record.title}: {record.summary or record.excerpt[:300]}")
+        lines.extend(
+            [
+                "",
+                "## Compaction Notes",
+                f"- Compacted at: {datetime.now(timezone.utc).isoformat()}",
+                f"- Source record count: {1 + len(secondary)}",
+                "- Archived secondary records should be treated as cold context.",
+            ]
+        )
+        return "\n".join(lines).strip()
+
     def _rebuild_entrypoint(self) -> None:
         lines = ["# MEMORY", ""]
         for record in self._scan_memory_records():
@@ -1140,4 +1383,6 @@ class MemoryManager:
             "instruction": "project",
             "session": "personal",
         }.get(scope, "project")
+
+
 

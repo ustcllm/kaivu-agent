@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any, Literal
 
@@ -211,6 +211,29 @@ class MemoryAutoGovernResponse(BaseModel):
     applied_count: int = 0
     events_written: int = 0
     results: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class MemoryCompactRequest(BaseModel):
+    discipline: str = ""
+    user_id: str = ""
+    project_id: str = ""
+    group_id: str = ""
+    scopes: list[str] = Field(default_factory=list)
+    max_groups: int = Field(default=20, ge=1, le=100)
+    dry_run: bool = False
+    semantic_guard: bool = True
+
+
+class MemoryCompactResponse(BaseModel):
+    ok: bool
+    dry_run: bool = False
+    candidate_group_count: int = 0
+    action_count: int = 0
+    skipped_count: int = 0
+    archive_dir: str = ""
+    rollback_manifest_path: str = ""
+    actions: list[dict[str, Any]] = Field(default_factory=list)
+    skipped: list[dict[str, Any]] = Field(default_factory=list)
 
 
 class MemoryAuditEvent(BaseModel):
@@ -615,3 +638,83 @@ class EvaluationSignalResponse(BaseModel):
 
 class EvaluationHistoryResponse(BaseModel):
     results: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class LearningEpisodeListResponse(BaseModel):
+    results: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class LearningFeedbackRequest(BaseModel):
+    episode_id: str
+    feedback_type: str = "human_preference"
+    rating: float | None = None
+    preferred_step_id: str = ""
+    rejected_step_id: str = ""
+    comment: str = ""
+    reviewer_id: str = ""
+    discipline: str = ""
+    user_id: str = ""
+    project_id: str = ""
+    group_id: str = ""
+
+
+class LearningFeedbackResponse(BaseModel):
+    ok: bool
+    path: str = ""
+    message: str = ""
+
+
+class LearningValidationResponse(BaseModel):
+    schema_version: str = ""
+    episode_count: int = 0
+    valid_count: int = 0
+    invalid_count: int = 0
+    results: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class LearningFeedbackSummaryResponse(BaseModel):
+    episode_count: int = 0
+    feedback_count: int = 0
+    episode_feedback_count: int = 0
+    orphan_feedback_count: int = 0
+    preference_pair_count: int = 0
+    average_rating: float | None = None
+    episodes: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class LearningExportRequest(BaseModel):
+    target: str = "policy"
+    limit: int = Field(default=1000, ge=1, le=10000)
+    filename: str | None = None
+    discipline: str = ""
+    user_id: str = ""
+    project_id: str = ""
+    group_id: str = ""
+
+
+class LearningArtifactResponse(BaseModel):
+    ok: bool
+    path: str = ""
+    kind: str = ""
+    message: str = ""
+
+
+class ContextPackRequest(BaseModel):
+    query: str
+    discipline: str = ""
+    user_id: str = ""
+    project_id: str = ""
+    group_id: str = ""
+    max_memory_items: int = Field(default=8, ge=0, le=50)
+    max_literature_items: int = Field(default=6, ge=0, le=50)
+    max_graph_items: int = Field(default=8, ge=0, le=50)
+    max_failed_attempt_items: int = Field(default=6, ge=0, le=50)
+    render_prompt: bool = False
+    max_prompt_chars: int = Field(default=12000, ge=1000, le=50000)
+
+
+class ContextPackResponse(BaseModel):
+    pack: dict[str, Any] = Field(default_factory=dict)
+    rendered_prompt_context: str = ""
+
+

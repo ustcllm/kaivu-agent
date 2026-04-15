@@ -179,3 +179,5 @@ class ModelRegistry:
         slug = "".join(ch if ch.isalnum() else "_" for ch in agent_name.upper())
         return f"KAIVU_{slug}"
 
+
+

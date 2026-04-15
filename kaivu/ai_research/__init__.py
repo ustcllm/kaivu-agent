@@ -1,4 +1,4 @@
-from .ablation import build_ablation_plan
+﻿from .ablation import build_ablation_plan
 from .artifact_registry import build_ai_artifact_contract
 from .contamination import build_contamination_risk_report
 from .dataset_profiler import build_dataset_profile
@@ -8,19 +8,36 @@ from .executor import (
     build_ai_training_executor_scaffold,
     build_ai_training_handoff_package,
 )
-from .experiment_bridge import (
-    augment_experiment_execution_loop_with_ai,
-    build_ai_experiment_candidates,
-)
-from .models import AIResearchWorkflowInput, AIResearchWorkflowResult
 from .training_recipe import build_training_recipe
-from .workflow import AIResearchWorkflow
+from .kaggle import (
+    CompetitionInfo,
+    CompetitionResearchDossier,
+    DataInventory,
+    KaggleCommunityResearch,
+    KaggleExperimentCandidate,
+    KaggleMethodLiteratureReview,
+    KaggleResearchDossierAdapter,
+    KaggleTaskAdapterInput,
+    KaggleTaskAdapterOutput,
+    SubmissionPlan,
+    ValidationProtocol,
+    build_competition_research_dossier,
+    scan_kaggle_data_dir,
+)
 
 __all__ = [
-    "AIResearchWorkflow",
-    "AIResearchWorkflowInput",
-    "AIResearchWorkflowResult",
     "AITrainingScaffoldResult",
+    "CompetitionInfo",
+    "CompetitionResearchDossier",
+    "DataInventory",
+    "KaggleCommunityResearch",
+    "KaggleExperimentCandidate",
+    "KaggleMethodLiteratureReview",
+    "KaggleResearchDossierAdapter",
+    "KaggleTaskAdapterInput",
+    "KaggleTaskAdapterOutput",
+    "SubmissionPlan",
+    "ValidationProtocol",
     "build_ablation_plan",
     "build_ai_artifact_contract",
     "build_contamination_risk_report",
@@ -28,7 +45,9 @@ __all__ = [
     "build_evaluation_protocol",
     "build_ai_training_executor_scaffold",
     "build_ai_training_handoff_package",
-    "augment_experiment_execution_loop_with_ai",
-    "build_ai_experiment_candidates",
     "build_training_recipe",
+    "build_competition_research_dossier",
+    "scan_kaggle_data_dir",
 ]
+
+

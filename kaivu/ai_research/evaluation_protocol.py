@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any
 
@@ -100,3 +100,5 @@ def _split_strategy(
         "locked_holdout_required": True,
         "rationale": rationale,
     }
+
+

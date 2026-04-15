@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass, field
 
@@ -1725,3 +1725,5 @@ DEFAULT_SCIENCE_PROFILES: dict[str, SpecialistProfile] = {
         ),
     ),
 }
+
+

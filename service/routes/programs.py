@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any
 
@@ -47,3 +47,5 @@ async def latest_research_program(
     if program is None:
         raise HTTPException(status_code=404, detail="Research program not found")
     return program
+
+

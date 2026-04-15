@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
@@ -69,3 +69,5 @@ async def upsert_project_member(
         display_name=payload.display_name,
     )
     return CollaborationMemberResponse(**result)
+
+

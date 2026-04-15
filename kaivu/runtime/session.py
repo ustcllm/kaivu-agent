@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -51,3 +51,5 @@ class RuntimeSession:
             "created_at": self.created_at,
             "updated_at": self.updated_at or self.created_at,
         }
+
+

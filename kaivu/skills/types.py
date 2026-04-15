@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -15,3 +15,5 @@ class SkillDefinition:
     input_schema: dict[str, Any] | None = None
     output_schema: dict[str, Any] | None = None
     path: Path | None = None
+
+

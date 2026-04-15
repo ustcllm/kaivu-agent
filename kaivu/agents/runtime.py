@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 import hashlib
@@ -7,7 +7,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from ..engine import ScientificAgent, AgentRunResult
+from ..engine import AgentRunResult, ToolCallingAgent
 from ..memory import MemoryManager
 from ..model import ModelBackend
 from ..permissions import PermissionPolicy
@@ -102,7 +102,7 @@ class SubagentRuntime:
                 safety_policy=spec.safety_policy,
             )
         )
-        agent = ScientificAgent(
+        agent = ToolCallingAgent(
             model=spec.model,
             tools=tools,
             cwd=self.cwd,
@@ -168,3 +168,5 @@ class SubagentRuntime:
             status="completed" if result.final_text else "incomplete",
         )
         return self.manifest_store.save(manifest)
+
+

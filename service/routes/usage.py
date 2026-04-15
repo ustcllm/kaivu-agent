@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -41,3 +41,5 @@ async def get_usage(
             for item in usage_summary.get("by_profile", [])
         ],
     )
+
+

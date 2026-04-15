@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any
 
@@ -344,3 +344,5 @@ def _slugify(value: str) -> str:
     while "--" in safe:
         safe = safe.replace("--", "-")
     return safe.strip("-") or "campaign"
+
+

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from typing import Any
@@ -202,6 +202,7 @@ def _adapter_specs() -> list[ExecutionAdapterSpec]:
                 "ai_leakage_audit",
                 "ai_protocol_repair",
                 "ai_research_planning",
+                "kaggle_training",
             ],
             required_inputs=["approved protocol", "frozen dataset split", "compute budget", "environment snapshot"],
             produced_artifacts=["config.json", "metrics.json", "model_checkpoint_ref", "seed_report"],
@@ -300,6 +301,7 @@ def _execution_mode(experiment_type: str, discipline: str) -> str:
         "ai_leakage_audit",
         "ai_protocol_repair",
         "ai_research_planning",
+        "kaggle_training",
     }:
         return "single_or_batched_experiment_run"
     if experiment_type in {"evidence_quality_repair", "evidence_resolution"}:
@@ -347,7 +349,7 @@ def _handoff_target(experiment_type: str, discipline: str) -> str:
     if experiment_type == "parameter_optimization":
         return "optimization_adapter"
     if discipline == "artificial_intelligence":
-        return "ai_training_runner"
+        return "kaggle_training_runner" if experiment_type == "kaggle_training" else "ai_training_runner"
     if discipline in {"chemistry", "chemical_engineering", "physics"}:
         return "domain_lab_adapter"
     if discipline == "mathematics":
@@ -360,3 +362,5 @@ def _slugify(value: str) -> str:
     while "--" in safe:
         safe = safe.replace("--", "-")
     return safe.strip("-") or "execution"
+
+

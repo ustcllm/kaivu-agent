@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any
 
@@ -88,3 +88,5 @@ def build_contamination_risk_report(
             "mark any public-leaderboard or reused-test feedback as contaminated evidence",
         ],
     }
+
+

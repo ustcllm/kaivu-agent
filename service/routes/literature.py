@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
@@ -73,3 +73,5 @@ async def lint_literature_workspace(
         group_id=group_id,
     )
     return LiteratureLintResponse(**result)
+
+

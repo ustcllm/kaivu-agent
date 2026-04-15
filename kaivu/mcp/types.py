@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any, Literal
@@ -50,3 +50,5 @@ class MCPToolCallResult:
     tool_name: str
     content: Any
     is_error: bool = False
+
+

@@ -12,6 +12,7 @@ from kaivu.literature_policy import decide_literature_ingest_policy, render_lite
 from kaivu import (
     ArxivSearchTool,
     BasicStatsTool,
+    ContextPackBuilder,
     ExperimentRegistry,
     apply_backpropagation_to_claim_graph,
     build_backpropagation_events,
@@ -37,9 +38,10 @@ from kaivu import (
     ResolveCitationTool,
     ReviewMemoryTool,
     SaveMemoryTool,
-    ScientificWorkflow,
+    ResearchDirector,
     ScientificRuntimeHarness,
     RuntimeManifestStore,
+    ScientificLearningEpisodeStore,
     SearchMemoryTool,
     SkillRuntime,
     ToolRegistry,
@@ -147,6 +149,48 @@ class WorkflowRuntime:
             state_root=layout.state_root,
         )
 
+    def build_context_pack(self, payload: dict[str, Any]) -> dict[str, Any]:
+        discipline = str(payload.get("discipline", ""))
+        project_id = str(payload.get("project_id", ""))
+        group_id = str(payload.get("group_id", ""))
+        user_id = str(payload.get("user_id", ""))
+        layout = self._layout_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        )
+        manager = self._memory_manager_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        )
+        builder = ContextPackBuilder(
+            root=self.root,
+            memory_manager=manager,
+            literature_root=layout.literature_root,
+            state_root=layout.state_root,
+        )
+        pack = builder.build(
+            str(payload.get("query", "")),
+            user_id=user_id,
+            project_id=project_id,
+            group_id=group_id,
+            max_memory_items=int(payload.get("max_memory_items", 8) or 8),
+            max_literature_items=int(payload.get("max_literature_items", 6) or 6),
+            max_graph_items=int(payload.get("max_graph_items", 8) or 8),
+            max_failed_attempt_items=int(payload.get("max_failed_attempt_items", 6) or 6),
+        )
+        return {
+            "pack": pack.to_dict(),
+            "rendered_prompt_context": pack.render_prompt_context(
+                max_chars=int(payload.get("max_prompt_chars", 12000) or 12000)
+            )
+            if bool(payload.get("render_prompt", False))
+            else "",
+        }
+
     def _event_ledger_for_scope(
         self,
         *,
@@ -245,6 +289,198 @@ class WorkflowRuntime:
             user_id=user_id,
         )
         return RuntimeManifestStore(layout.state_root / "runtime_manifests").latest()
+
+    def list_learning_episodes(
+        self,
+        *,
+        limit: int = 50,
+        discipline: str = "",
+        project_id: str = "",
+        group_id: str = "",
+        user_id: str = "",
+    ) -> list[dict[str, Any]]:
+        layout = self._layout_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        )
+        path = layout.state_root / "runtime" / "learning" / "scientific_learning_episodes.jsonl"
+        if not path.exists():
+            return []
+        rows: list[dict[str, Any]] = []
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                item = json.loads(line)
+            except Exception:
+                continue
+            if isinstance(item, dict):
+                rows.append(item)
+        return rows[-max(1, min(limit, 500)) :]
+
+    def _learning_store_for_scope(
+        self,
+        *,
+        discipline: str = "",
+        project_id: str = "",
+        group_id: str = "",
+        user_id: str = "",
+    ) -> ScientificLearningEpisodeStore:
+        layout = self._layout_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        )
+        return ScientificLearningEpisodeStore(layout.state_root / "runtime" / "learning")
+
+    def validate_learning_episodes(
+        self,
+        *,
+        limit: int = 1000,
+        discipline: str = "",
+        project_id: str = "",
+        group_id: str = "",
+        user_id: str = "",
+    ) -> dict[str, Any]:
+        return self._learning_store_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        ).validate_episodes(limit=limit)
+
+    def summarize_learning_feedback(
+        self,
+        *,
+        limit: int = 1000,
+        discipline: str = "",
+        project_id: str = "",
+        group_id: str = "",
+        user_id: str = "",
+    ) -> dict[str, Any]:
+        return self._learning_store_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        ).aggregate_feedback(limit=limit)
+
+    def export_learning_training_dataset(self, payload: dict[str, Any]) -> dict[str, Any]:
+        store = self._learning_store_for_scope(
+            discipline=str(payload.get("discipline", "")),
+            project_id=str(payload.get("project_id", "")),
+            group_id=str(payload.get("group_id", "")),
+            user_id=str(payload.get("user_id", "")),
+        )
+        path = store.export_training_dataset(
+            target=str(payload.get("target", "policy")),
+            limit=int(payload.get("limit", 1000) or 1000),
+            filename=payload.get("filename"),
+        )
+        return {"ok": True, "path": str(path), "kind": "training_dataset", "message": "Training dataset exported."}
+
+    def build_learning_benchmark_dataset(
+        self,
+        *,
+        limit: int = 1000,
+        discipline: str = "",
+        project_id: str = "",
+        group_id: str = "",
+        user_id: str = "",
+    ) -> dict[str, Any]:
+        path = self._learning_store_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        ).build_benchmark_dataset(limit=limit)
+        return {"ok": True, "path": str(path), "kind": "benchmark_dataset", "message": "Benchmark dataset built."}
+
+    def build_learning_replay_index(
+        self,
+        *,
+        limit: int = 1000,
+        discipline: str = "",
+        project_id: str = "",
+        group_id: str = "",
+        user_id: str = "",
+    ) -> dict[str, Any]:
+        path = self._learning_store_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        ).build_replay_index(limit=limit)
+        return {"ok": True, "path": str(path), "kind": "replay_index", "message": "Replay index built."}
+
+    def run_learning_replay_checks(
+        self,
+        *,
+        limit: int = 1000,
+        discipline: str = "",
+        project_id: str = "",
+        group_id: str = "",
+        user_id: str = "",
+    ) -> dict[str, Any]:
+        path = self._learning_store_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        ).run_replay_checks(limit=limit)
+        return {"ok": True, "path": str(path), "kind": "replay_report", "message": "Replay checks completed."}
+
+    def run_learning_benchmark_checks(
+        self,
+        *,
+        limit: int = 1000,
+        discipline: str = "",
+        project_id: str = "",
+        group_id: str = "",
+        user_id: str = "",
+    ) -> dict[str, Any]:
+        path = self._learning_store_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        ).run_benchmark_checks(limit=limit)
+        return {"ok": True, "path": str(path), "kind": "benchmark_report", "message": "Benchmark checks completed."}
+
+    def append_learning_feedback(
+        self,
+        payload: dict[str, Any],
+    ) -> dict[str, Any]:
+        layout = self._layout_for_scope(
+            discipline=str(payload.get("discipline", "")),
+            project_id=str(payload.get("project_id", "")),
+            group_id=str(payload.get("group_id", "")),
+            user_id=str(payload.get("user_id", "")),
+        )
+        feedback = {
+            "episode_id": str(payload.get("episode_id", "")).strip(),
+            "feedback_type": str(payload.get("feedback_type", "human_preference")).strip(),
+            "rating": payload.get("rating"),
+            "preferred_step_id": str(payload.get("preferred_step_id", "")).strip(),
+            "rejected_step_id": str(payload.get("rejected_step_id", "")).strip(),
+            "comment": str(payload.get("comment", "")).strip(),
+            "reviewer_id": str(payload.get("reviewer_id", "")).strip(),
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "governance": {
+                "observation_only": True,
+                "does_not_modify_business_decisions": True,
+            },
+        }
+        if not feedback["episode_id"]:
+            return {"ok": False, "path": "", "message": "episode_id is required"}
+        path = layout.state_root / "runtime" / "learning" / "human_feedback.jsonl"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(feedback, ensure_ascii=False, sort_keys=True) + "\n")
+        return {"ok": True, "path": str(path), "message": "Feedback appended to learning layer only."}
 
     @staticmethod
     def _allowed_run_status_transitions() -> dict[str, set[str]]:
@@ -2415,6 +2651,27 @@ class WorkflowRuntime:
             "results": results,
         }
 
+    def compact_memory(self, payload: dict[str, Any]) -> dict[str, Any]:
+        user_id = str(payload.get("user_id", "")).strip()
+        project_id = str(payload.get("project_id", "")).strip()
+        group_id = str(payload.get("group_id", "")).strip()
+        discipline = str(payload.get("discipline", "")).strip()
+        manager = self._memory_manager_for_scope(
+            discipline=discipline,
+            project_id=project_id,
+            group_id=group_id,
+            user_id=user_id,
+        )
+        return manager.compact_memories(
+            user_id=user_id or None,
+            project_id=project_id or None,
+            group_id=group_id or None,
+            scopes=payload.get("scopes") or None,
+            max_groups=int(payload.get("max_groups", 20) or 20),
+            dry_run=bool(payload.get("dry_run", False)),
+            semantic_guard=bool(payload.get("semantic_guard", True)),
+        )
+
     def _memory_migration_events(
         self,
         *,
@@ -2751,7 +3008,7 @@ class WorkflowRuntime:
                 group_id=group_id,
                 user_id=user_id,
             )
-            workflow = ScientificWorkflow(
+            director = ResearchDirector(
                 cwd=self.root,
                 model_name="gpt-5",
                 permission_policy=PermissionPolicy(
@@ -2777,9 +3034,14 @@ class WorkflowRuntime:
                     ),
                 },
             )
-            harness = ScientificRuntimeHarness(root=self.root)
+            harness = ScientificRuntimeHarness(
+                root=self.root,
+                runtime_dir=layout.state_root / "runtime",
+                trajectory_dir=layout.state_root / "runtime" / "trajectories",
+                learning_dir=layout.state_root / "runtime" / "learning",
+            )
             harness_run = await harness.run_workflow(
-                workflow,
+                director,
                 topic=topic,
                 tools=self._build_tools(),
                 model="gpt-5",
@@ -2815,7 +3077,7 @@ class WorkflowRuntime:
             record.result = result
             record.report_markdown = result.final_report
             record.status = "completed"
-            record.usage_summary = workflow._collect_usage_summary(result.steps)
+            record.usage_summary = director._collect_usage_summary(result.steps)
         except Exception as exc:
             record.status = "failed"
             record.error = str(exc)
@@ -2842,4 +3104,6 @@ class WorkflowRuntime:
                 ReviewMemoryTool(),
             ]
         )
+
+
 

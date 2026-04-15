@@ -275,9 +275,17 @@ kaivu-agent/
 
 关键模块：
 
-- `kaivu/workflow.py`：多智能体科研工作流。
+- `kaivu/director.py`：项目级 `ResearchDirector`，负责科研总控、多人协作、报告和状态整合。
+- `kaivu/director_services/`：`ResearchDirector` 的服务化拆分目录，承载研究状态、文献状态、实验状态、memory/graph 同步、报告状态，以及连接 `ScientificAgentRuntime` 的 `DirectorRuntimeBridge`。
+- `kaivu/runtime/agent_runtime.py`：`ScientificAgentRuntime`，负责单个科学智能体生命周期运行、capability 解析、工具策略和 trajectory 记录。
+- `kaivu/agents/base.py`：`ScientificAgent`，负责稳定科研生命周期、stage plan 和 profile-driven 科学推理接口。
+- `kaivu/agents/discipline_agents.py`：`ProfiledScientificAgent` 和 discipline normalization，默认由 profile 驱动生成学科 agent，不再维护一组空学科子类。
+- `kaivu/agents/profiles.py`：`DisciplineProfile`、quality gate 和学科 prompt/profile 配置。
+- `kaivu/tasks/`：`TaskAdapter` 和 `ScientificTask`，负责把 Kaggle 等具体任务接入统一科研生命周期。
 - `kaivu/scientific_kernel.py`：科学智能体内核结构。
 - `kaivu/memory.py`：长期记忆和会话记忆。
+
+边界说明见 `docs/director_runtime_boundary.md`：`ResearchDirector` 做项目级科研治理，`ScientificAgentRuntime` 做单 agent 运行，`ScientificAgent` 做科学语义 hook，`director_services` 只做纯状态转换。
 - `kaivu/memory_governance.py`：记忆迁移、审查、日志和治理。
 - `kaivu/hypotheses.py`：假说结构和校验。
 - `kaivu/evidence_review.py`：证据综合和质量审查。

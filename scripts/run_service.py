@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import sys
 from pathlib import Path
@@ -20,3 +20,5 @@ if __name__ == "__main__":
         reload=False,
         log_level="info",
     )
+
+

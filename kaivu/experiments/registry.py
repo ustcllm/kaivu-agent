@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import hashlib
 import json
@@ -85,3 +85,5 @@ class ExperimentRegistry:
             return slug
         digest = hashlib.sha1(str(value).encode("utf-8")).hexdigest()[:12]
         return f"{slug[:127].rstrip('-')}-{digest}"
+
+

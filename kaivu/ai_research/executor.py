@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 from dataclasses import asdict, dataclass, field
@@ -24,7 +24,7 @@ def build_ai_training_executor_scaffold(
     *,
     root: str | Path,
     experiment_id: str = "ai-exp-baseline-001",
-    ai_research_workflow_summary: dict[str, Any],
+    ai_agent_summary: dict[str, Any],
     overwrite: bool = False,
 ) -> AITrainingScaffoldResult:
     workspace = Path(root).resolve()
@@ -35,10 +35,10 @@ def build_ai_training_executor_scaffold(
     experiment_root.mkdir(parents=True, exist_ok=True)
     src_root.mkdir(parents=True, exist_ok=True)
 
-    evaluation = ai_research_workflow_summary.get("evaluation_protocol", {})
-    training = ai_research_workflow_summary.get("training_recipe", {})
-    dataset_profile = ai_research_workflow_summary.get("dataset_profile", {})
-    artifact_contract = ai_research_workflow_summary.get("artifact_contract", {})
+    evaluation = ai_agent_summary.get("evaluation_protocol", {})
+    training = ai_agent_summary.get("training_recipe", {})
+    dataset_profile = ai_agent_summary.get("dataset_profile", {})
+    artifact_contract = ai_agent_summary.get("artifact_contract", {})
     baseline = training.get("baseline_recipe", {}) if isinstance(training, dict) else {}
     config = {
         "experiment_id": experiment_id,
@@ -283,3 +283,5 @@ def _slugify(value: str) -> str:
     while "--" in safe:
         safe = safe.replace("--", "-")
     return safe.strip("-") or "ai-experiment"
+
+

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -157,3 +157,5 @@ class RuntimeMemoryManager:
     def shutdown_all(self) -> None:
         for provider in self.providers:
             provider.shutdown()
+
+

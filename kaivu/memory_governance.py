@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -305,3 +305,5 @@ def _target_visibility(target_scope: str) -> VisibilityLevel:
 def _max_risk(left: str, right: str) -> str:
     rank = {"low": 0, "medium": 1, "high": 2}
     return left if rank.get(left, 0) >= rank.get(right, 0) else right
+
+

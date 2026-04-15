@@ -1,4 +1,4 @@
-from .artificial_intelligence import artificial_intelligence_quality_control_checklist
+﻿from .artificial_intelligence import artificial_intelligence_quality_control_checklist
 from .chemical_engineering import chemical_engineering_quality_control_checklist
 from .chemistry import chemistry_quality_control_checklist
 from .mathematics import mathematics_quality_control_checklist
@@ -11,3 +11,5 @@ __all__ = [
     "mathematics_quality_control_checklist",
     "physics_quality_control_checklist",
 ]
+
+

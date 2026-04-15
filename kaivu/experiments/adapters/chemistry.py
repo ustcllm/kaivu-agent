@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from ..quality_control import QualityControlCheckDefinition, QualityControlChecklist
 
@@ -43,3 +43,5 @@ def chemistry_quality_control_checklist() -> QualityControlChecklist:
             ),
         ],
     )
+
+

@@ -1,4 +1,4 @@
-from .client import MCPClient
+﻿from .client import MCPClient
 from .registry import MCPDiscoveryCatalog, MCPRegistry
 from .tool_adapter import MCPToolAdapter
 from .types import (
@@ -20,3 +20,5 @@ __all__ = [
     "MCPToolCallResult",
     "MCPToolSpec",
 ]
+
+

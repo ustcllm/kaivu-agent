@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any
 
@@ -45,3 +45,5 @@ async def latest_runtime_manifest(
     if manifest is None:
         raise HTTPException(status_code=404, detail="Runtime manifest not found")
     return manifest
+
+

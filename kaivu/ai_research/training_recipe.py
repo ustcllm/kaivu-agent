@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any
 
@@ -67,3 +67,5 @@ def _baseline_recipe(*, task: str, models: list[str]) -> dict[str, Any]:
         "seed_policy": [42],
         "expected_outputs": ["metrics.json", "config.json", "runtime_manifest.json"],
     }
+
+

@@ -9,9 +9,11 @@ from fastapi.staticfiles import StaticFiles
 
 from .routes import (
     collaboration_router,
+    context_router,
     events_router,
     experiments_router,
     graph_router,
+    learning_router,
     literature_router,
     memory_router,
     programs_router,
@@ -42,10 +44,12 @@ def create_app(root: str | Path | None = None) -> FastAPI:
     app.state.workflow_runtime = WorkflowRuntime(workspace_root)
     app.include_router(workflow_router)
     app.include_router(collaboration_router)
+    app.include_router(context_router)
     app.include_router(experiments_router)
     app.include_router(memory_router)
     app.include_router(programs_router)
     app.include_router(graph_router)
+    app.include_router(learning_router)
     app.include_router(events_router)
     app.include_router(literature_router)
     app.include_router(reports_router)
@@ -68,4 +72,6 @@ def create_app(root: str | Path | None = None) -> FastAPI:
 
 
 app = create_app()
+
+
 

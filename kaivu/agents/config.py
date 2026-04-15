@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import hashlib
 import json
@@ -85,3 +85,5 @@ def render_agent_config_prompt(config: ScientificAgentConfig) -> str:
     if config.notes:
         lines.append(f"Notes: {config.notes}")
     return "\n".join(lines)
+
+

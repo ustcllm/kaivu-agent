@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass
 
@@ -17,3 +17,5 @@ def render_sections(sections: list[PromptSection]) -> str:
             continue
         blocks.append(f"## {section.name}\n{section.content.strip()}")
     return "\n\n".join(blocks).strip()
+
+

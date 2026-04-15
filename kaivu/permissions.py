@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from pathlib import Path
 import re
@@ -189,3 +189,5 @@ class PermissionPolicy:
             return True
         except ValueError:
             return False
+
+

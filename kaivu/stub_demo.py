@@ -7,7 +7,7 @@ from pathlib import Path
 if __package__ in (None, ""):
     sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
     from kaivu.data_tools import BasicStatsTool, ReadTableTool
-    from kaivu.engine import ScientificAgent
+    from kaivu.engine import ToolCallingAgent
     from kaivu.memory import MemoryManager
     from kaivu.model import StubScienceModel
     from kaivu.permissions import PermissionPolicy
@@ -28,7 +28,7 @@ if __package__ in (None, ""):
     )
 else:
     from .data_tools import BasicStatsTool, ReadTableTool
-    from .engine import ScientificAgent
+    from .engine import ToolCallingAgent
     from .memory import MemoryManager
     from .model import StubScienceModel
     from .permissions import PermissionPolicy
@@ -70,7 +70,7 @@ async def main() -> None:
     root = Path(__file__).resolve().parent.parent
     build_demo_workspace(root)
 
-    agent = ScientificAgent(
+    agent = ToolCallingAgent(
         model=StubScienceModel(),
         tools=ToolRegistry(
             [
@@ -109,4 +109,6 @@ async def main() -> None:
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
 

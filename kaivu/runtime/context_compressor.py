@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Any
@@ -142,3 +142,5 @@ class ScientificContextCompressor:
             if message.get("role") == "user" and str(message.get("content", "")).strip():
                 return str(message.get("content", "")).strip()[:500]
         return ""
+
+

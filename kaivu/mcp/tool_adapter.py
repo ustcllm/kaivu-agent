@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any
 
@@ -35,3 +35,5 @@ class MCPToolAdapter(Tool):
             "is_error": result.is_error,
             "content": result.content,
         }
+
+

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import asyncio
 from contextlib import suppress
@@ -202,3 +202,5 @@ class MCPClient:
                 )
             else:
                 pending.future.set_result(payload.get("result", {}))
+
+

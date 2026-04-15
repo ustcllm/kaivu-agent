@@ -9,11 +9,6 @@ import sys
 from typing import Any
 
 from .agents import SubagentRuntime, SubagentSpec
-from .ai_research import (
-    AIResearchWorkflow,
-    AIResearchWorkflowInput,
-    augment_experiment_execution_loop_with_ai,
-)
 from .assets import build_unified_asset_summary
 from .autonomous_controller import build_autonomous_controller_summary
 from .anomaly_detector import build_anomaly_surprise_detector_summary
@@ -21,12 +16,34 @@ from .campaign_planner import build_research_campaign_plan_summary
 from .credit_ledger import build_scientific_credit_responsibility_ledger_summary
 from .decision_engine import build_scientific_decision_summary
 from .context_policy import build_scientific_context_policy_summary
+from .director_services import (
+    build_run_manifest,
+    collect_citations,
+    collect_execution_records,
+    collect_research_state_inputs,
+    collect_usage_summary,
+    derive_belief_update_summary,
+    derive_execution_cycle_summary,
+    derive_experiment_economics_summary,
+    derive_experiment_governance_summary,
+    derive_failure_intelligence_summary,
+    derive_graph_learning_summary,
+    derive_graph_reference_summary,
+    derive_literature_synthesis,
+    derive_systematic_review_draft,
+    DirectorRuntimeBridge,
+    safe_float as _safe_float,
+    summarize_conflict_groups,
+    summarize_asset_registry,
+    summarize_quality_grades,
+)
 from .discipline_adapters import build_discipline_adapter_summary
 from .discipline_toolchains import build_discipline_toolchain_binding_summary
 from .evidence_review import build_evidence_review_summary
 from .evaluation_harness import build_kaivu_evaluation_harness_summary
 from .event_ledger import ResearchEventLedger, build_workflow_events
 from .executors import ScientificExecutorRegistry
+from .engine import ToolCallingAgent
 from .experiment_backpropagation import (
     apply_backpropagation_to_claim_graph,
     build_backpropagation_memory_items,
@@ -100,34 +117,8 @@ from .structured_output import (
 from .tools import ToolRegistry
 
 
-def _safe_float(value: Any) -> float:
-    try:
-        return float(value)
-    except Exception:
-        return 0.0
-
-
-def _context_string(context: dict[str, Any], key: str) -> str:
-    value = context.get(key)
-    return str(value).strip() if value is not None else ""
-
-
-def _context_list(context: dict[str, Any], key: str) -> list[str]:
-    value = context.get(key)
-    if isinstance(value, list):
-        return [str(item).strip() for item in value if str(item).strip()]
-    if isinstance(value, str) and value.strip():
-        return [item.strip() for item in value.split(",") if item.strip()]
-    return []
-
-
-def _context_dict(context: dict[str, Any], key: str) -> dict[str, Any]:
-    value = context.get(key)
-    return value if isinstance(value, dict) else {}
-
-
 @dataclass(slots=True)
-class WorkflowStepResult:
+class ResearchDirectorStepResult:
     profile_name: str
     raw_output: str
     parsed_output: dict[str, Any]
@@ -136,9 +127,9 @@ class WorkflowStepResult:
 
 
 @dataclass(slots=True)
-class WorkflowRunResult:
+class ResearchDirectorRunResult:
     topic: str
-    steps: list[WorkflowStepResult]
+    steps: list[ResearchDirectorStepResult]
     claim_graph: dict[str, Any]
     research_state: dict[str, Any]
     run_manifest: dict[str, Any]
@@ -169,7 +160,7 @@ ALLOWED_STAGE_NEXT: dict[str, list[str]] = {
 }
 
 
-class ScientificWorkflow:
+class ResearchDirector:
     def __init__(
         self,
         *,
@@ -222,6 +213,7 @@ class ScientificWorkflow:
             cwd=self.cwd,
             graph_registry=self.graph_registry,
         )
+        self.agent_runtime_bridge = DirectorRuntimeBridge()
         self.subagent_runtime = SubagentRuntime(
             cwd=self.cwd,
             permission_policy=self.permission_policy,
@@ -240,8 +232,8 @@ class ScientificWorkflow:
         *,
         tools: ToolRegistry,
         profiles: list[SpecialistProfile] | None = None,
-    ) -> WorkflowRunResult:
-        steps: list[WorkflowStepResult] = []
+    ) -> ResearchDirectorRunResult:
+        steps: list[ResearchDirectorStepResult] = []
         project_id = str(self.collaboration_context.get("project_id", "")).strip()
         prior_program = self.research_program_registry.latest_program(project_id=project_id, topic=topic)
         if prior_program:
@@ -302,7 +294,7 @@ class ScientificWorkflow:
         claim_graph["research_plan_summary"] = research_state.get("research_plan_summary", {})
         claim_graph["literature_synthesis"] = research_state.get("literature_synthesis", {})
         claim_graph["systematic_review_summary"] = research_state.get("systematic_review_summary", {})
-        claim_graph["ai_research_workflow_summary"] = research_state.get("ai_research_workflow_summary", {})
+        claim_graph["discipline_agent_summary"] = research_state.get("discipline_agent_summary", {})
         claim_graph["ai_evaluation_protocol"] = research_state.get("ai_evaluation_protocol", {})
         claim_graph["ai_training_recipe"] = research_state.get("ai_training_recipe", {})
         claim_graph["ai_ablation_plan"] = research_state.get("ai_ablation_plan", {})
@@ -603,7 +595,7 @@ class ScientificWorkflow:
             "average_task_quality_score": scientific_evaluation_benchmark_summary.get("average_quality_score", 0),
         }
         claim_graph["benchmark_case_suite_summary"] = research_state["benchmark_case_suite_summary"]
-        research_state["scientific_evaluation_system_summary"] = ScientificWorkflow._derive_scientific_evaluation_system_summary(
+        research_state["scientific_evaluation_system_summary"] = ResearchDirector._derive_scientific_evaluation_system_summary(
             topic=topic,
             benchmark_harness_summary=research_state.get("benchmark_harness_summary", {}),
             benchmark_case_suite_summary=research_state.get("benchmark_case_suite_summary", {}),
@@ -611,7 +603,7 @@ class ScientificWorkflow:
             evaluation_summary=research_state.get("evaluation_summary", {}),
         )
         claim_graph["scientific_evaluation_system_summary"] = research_state["scientific_evaluation_system_summary"]
-        research_state["workflow_control_summary"] = ScientificWorkflow._derive_workflow_control_summary(
+        research_state["workflow_control_summary"] = ResearchDirector._derive_workflow_control_summary(
             topic=topic,
             current_stage=str(research_state.get("current_stage", "")),
             recommended_next_stage=str(research_state.get("recommended_next_stage", "")),
@@ -708,7 +700,7 @@ class ScientificWorkflow:
             )
             for item in run_manifest.get("artifacts", [])
         ]
-        return WorkflowRunResult(
+        return ResearchDirectorRunResult(
             topic=topic,
             steps=steps,
             claim_graph=claim_graph,
@@ -719,7 +711,7 @@ class ScientificWorkflow:
         )
 
     async def _run_dynamic_workflow(
-        self, topic: str, tools: ToolRegistry, steps: list[WorkflowStepResult]
+        self, topic: str, tools: ToolRegistry, steps: list[ResearchDirectorStepResult]
     ) -> None:
         remaining = [
             "data_curator",
@@ -795,7 +787,7 @@ class ScientificWorkflow:
                     await self._run_controlled_tail(topic, tools, steps)
                     return
 
-        termination_strategy = ScientificWorkflow._derive_routing_termination_strategy(steps)
+        termination_strategy = ResearchDirector._derive_routing_termination_strategy(steps)
         blocked_after_routing = {
             str(item).strip()
             for item in termination_strategy.get("blocked_specialists", [])
@@ -835,7 +827,7 @@ class ScientificWorkflow:
         self,
         topic: str,
         tools: ToolRegistry,
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
     ) -> None:
         completed = {step.profile_name for step in steps}
         for tail in ["coordinator", "report_writer"]:
@@ -850,10 +842,10 @@ class ScientificWorkflow:
         self,
         topic: str,
         tools: ToolRegistry,
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
         remaining: list[str],
         *,
-        trigger_step: WorkflowStepResult,
+        trigger_step: ResearchDirectorStepResult,
     ) -> None:
         control = self._mid_run_control_decision(trigger_step=trigger_step, steps=steps, remaining=remaining)
         self._record_mid_run_control(control)
@@ -981,8 +973,8 @@ class ScientificWorkflow:
     @staticmethod
     def _mid_run_control_decision(
         *,
-        trigger_step: WorkflowStepResult,
-        steps: list[WorkflowStepResult],
+        trigger_step: ResearchDirectorStepResult,
+        steps: list[ResearchDirectorStepResult],
         remaining: list[str],
     ) -> dict[str, Any]:
         parsed = trigger_step.parsed_output if isinstance(trigger_step.parsed_output, dict) else {}
@@ -1165,8 +1157,8 @@ class ScientificWorkflow:
         topic: str,
         profile: SpecialistProfile,
         tools: ToolRegistry,
-        prior_steps: list[WorkflowStepResult],
-    ) -> WorkflowStepResult:
+        prior_steps: list[ResearchDirectorStepResult],
+    ) -> ResearchDirectorStepResult:
         if self._is_profile_blocked_by_mid_run_control(profile.name):
             step = self._blocked_profile_step(profile.name)
             self._emit_runtime_event(
@@ -1233,7 +1225,7 @@ class ScientificWorkflow:
             initial_model_config=resolved_model_config,
             initial_state=subagent.result.state,
         )
-        step = WorkflowStepResult(
+        step = ResearchDirectorStepResult(
             profile_name=profile.name,
             raw_output=parsed.pop("_raw_output", subagent.result.final_text),
             parsed_output=parsed,
@@ -1252,11 +1244,11 @@ class ScientificWorkflow:
         topic: str,
         profiles: list[SpecialistProfile],
         tools: ToolRegistry,
-        prior_steps: list[WorkflowStepResult],
-    ) -> list[WorkflowStepResult]:
+        prior_steps: list[ResearchDirectorStepResult],
+    ) -> list[ResearchDirectorStepResult]:
         if not profiles:
             return []
-        output_steps: list[WorkflowStepResult] = []
+        output_steps: list[ResearchDirectorStepResult] = []
         runnable_profiles: list[SpecialistProfile] = []
         for profile in profiles:
             if self._is_profile_blocked_by_mid_run_control(profile.name):
@@ -1342,7 +1334,7 @@ class ScientificWorkflow:
                 initial_model_config=resolved_model_config,
                 initial_state=subagent.result.state,
             )
-            step = WorkflowStepResult(
+            step = ResearchDirectorStepResult(
                 profile_name=profile.name,
                 raw_output=parsed.pop("_raw_output", subagent.result.final_text),
                 parsed_output=parsed,
@@ -1362,10 +1354,10 @@ class ScientificWorkflow:
             return False
         return profile_name in self._mid_run_control_blocked_profiles()
 
-    def _blocked_profile_step(self, profile_name: str) -> WorkflowStepResult:
+    def _blocked_profile_step(self, profile_name: str) -> ResearchDirectorStepResult:
         state = AgentState(cwd=self.cwd)
         state.scratchpad["mid_run_control_skipped"] = True
-        return WorkflowStepResult(
+        return ResearchDirectorStepResult(
             profile_name=profile_name,
             raw_output="Skipped by mid-run controller.",
             parsed_output={
@@ -1400,7 +1392,7 @@ class ScientificWorkflow:
             return
 
     @staticmethod
-    def _runtime_step_payload(step: WorkflowStepResult, step_index: int) -> dict[str, Any]:
+    def _runtime_step_payload(step: ResearchDirectorStepResult, step_index: int) -> dict[str, Any]:
         usage = step.state.scratchpad.get("model_usage_totals", {})
         usage_totals = usage if isinstance(usage, dict) else {}
         return {
@@ -1429,7 +1421,7 @@ class ScientificWorkflow:
             return base_prompt
         return f"{base_prompt}\n\n{skill_prompt}"
 
-    def _build_workflow_state(self, topic: str, prior_steps: list[WorkflowStepResult]) -> str:
+    def _build_workflow_state(self, topic: str, prior_steps: list[ResearchDirectorStepResult]) -> str:
         graph_context = self._build_typed_graph_query_context(topic)
         if not prior_steps:
             lines = ["No prior specialist outputs yet."]
@@ -1810,7 +1802,7 @@ class ScientificWorkflow:
         updated["llm_judge_default"] = llm_default
         updated["scheduler_constraints"] = list(
             dict.fromkeys(
-                ScientificWorkflow._strings(updated.get("scheduler_constraints", []))
+                ResearchDirector._strings(updated.get("scheduler_constraints", []))
                 + [
                     f"LLM judge: {item.get('route_action', '')} -> {item.get('llm_recommended_action', '')}: {item.get('llm_rationale', '')}"
                     for item in steps[:5]
@@ -2047,7 +2039,7 @@ class ScientificWorkflow:
         topic: str,
         profile: SpecialistProfile,
         tools: ToolRegistry,
-        prior_steps: list[WorkflowStepResult],
+        prior_steps: list[ResearchDirectorStepResult],
         raw_text: str,
         initial_model_config: AgentModelConfig,
         initial_state: AgentState,
@@ -2111,7 +2103,7 @@ class ScientificWorkflow:
                 ),
                 allow_web_search_override=False,
             )
-            repair_agent = ScientificAgent(
+            repair_agent = ToolCallingAgent(
                 model=backend,
                 tools=ToolRegistry([]),
                 cwd=self.cwd,
@@ -2135,26 +2127,12 @@ class ScientificWorkflow:
         return {"schema_parse_error": current_error, "raw_text": current_raw}
 
     @staticmethod
-    def _collect_citations(steps: list[WorkflowStepResult]) -> list[dict[str, Any]]:
-        citations: dict[str, dict[str, Any]] = {}
-        for step in steps:
-            library = step.state.scratchpad.get("citation_library", {})
-            if not isinstance(library, dict):
-                continue
-            for key, value in library.items():
-                if key not in citations:
-                    citations[key] = value
-                else:
-                    merged = dict(citations[key])
-                    for field, item in value.items():
-                        if item not in (None, "", [], {}):
-                            merged[field] = item
-                    citations[key] = merged
-        return list(citations.values())
+    def _collect_citations(steps: list[ResearchDirectorStepResult]) -> list[dict[str, Any]]:
+        return collect_citations(steps)
 
     @staticmethod
     def _build_prompt(
-        topic: str, profile: SpecialistProfile, prior_steps: list[WorkflowStepResult]
+        topic: str, profile: SpecialistProfile, prior_steps: list[ResearchDirectorStepResult]
     ) -> str:
         sections = [
             f"Research topic: {topic}",
@@ -2174,7 +2152,7 @@ class ScientificWorkflow:
         return self.mcp_registry.build_prompt_instructions(topic)
 
     @staticmethod
-    def _build_claim_graph(steps: list[WorkflowStepResult]) -> dict[str, Any]:
+    def _build_claim_graph(steps: list[ResearchDirectorStepResult]) -> dict[str, Any]:
         claim_nodes: list[dict[str, Any]] = []
         evidence_nodes: list[dict[str, Any]] = []
         edges: list[dict[str, str]] = []
@@ -2299,7 +2277,7 @@ class ScientificWorkflow:
                         }
                     )
 
-        negative_result_links = ScientificWorkflow._build_negative_result_links(
+        negative_result_links = ResearchDirector._build_negative_result_links(
             steps,
             hypothesis_id_map,
             hypothesis_nodes,
@@ -2317,7 +2295,7 @@ class ScientificWorkflow:
             "edges": edges,
         }
 
-    def _derive_ai_research_workflow_summary(
+    def _derive_discipline_agent_summary(
         self,
         *,
         topic: str,
@@ -2328,103 +2306,44 @@ class ScientificWorkflow:
         project_distill: dict[str, Any],
         failure_intelligence_summary: dict[str, Any],
     ) -> dict[str, Any]:
-        if not self._should_run_ai_research_workflow(topic, discipline_adaptation_summary):
-            return {
-                "workflow_state": "not_applicable",
-                "reason": "input was not classified as artificial intelligence research",
-            }
+        primary = str(discipline_adaptation_summary.get("primary_discipline", "")).strip()
+        explicit = str(self.collaboration_context.get("discipline", "")).strip()
+        task_type = self._infer_task_type(topic)
+        discipline = (
+            "kaggle_competition"
+            if task_type == "kaggle_competition"
+            else explicit
+            or primary
+            or "general_science"
+        )
         try:
-            request = AIResearchWorkflowInput(
-                research_question=topic,
-                dataset_path=_context_string(self.collaboration_context, "dataset_path"),
-                target_column=_context_string(self.collaboration_context, "target_column"),
-                id_column=_context_string(self.collaboration_context, "id_column"),
-                task_type=self._infer_ai_task_type(topic),
-                metric=_context_string(self.collaboration_context, "metric"),
-                metric_direction=_context_string(self.collaboration_context, "metric_direction"),
-                available_compute=_context_string(self.collaboration_context, "available_compute") or "local_cpu",
-                candidate_models=_context_list(self.collaboration_context, "candidate_models"),
-                project_id=str(self.collaboration_context.get("project_id", "")).strip(),
-                output_dir=str(self.workspace_layout.state_root / "ai_research" / self._slugify_text(topic)),
-                research_context={
-                    "topic": topic,
-                    "mode": str(self.collaboration_context.get("ai_research_mode", "guided")).strip() or "guided",
-                    "discipline_adaptation_summary": discipline_adaptation_summary,
-                    "evidence_review_summary": evidence_review_summary,
-                    "project_distill": project_distill,
-                    "failure_intelligence_summary": failure_intelligence_summary,
-                },
-                literature_context={
-                    "literature_synthesis": literature_synthesis,
-                    "systematic_review_summary": systematic_review_summary,
-                },
-                benchmark_context=_context_dict(self.collaboration_context, "benchmark_context"),
-                repo_context=_context_dict(self.collaboration_context, "repo_context"),
-                prior_memory_context={
-                    "research_program_context": self.collaboration_context.get("research_program_context", {}),
-                    "scheduler_memory_context": self.collaboration_context.get("scheduler_memory_context", {}),
-                },
+            summary = self.agent_runtime_bridge.summarize_discipline_agent(
+                topic=topic,
+                discipline=discipline,
+                task_type=task_type,
+                collaboration_context=self.collaboration_context,
+                literature_synthesis=literature_synthesis,
+                systematic_review_summary=systematic_review_summary,
+                evidence_review_summary=evidence_review_summary,
+                project_distill=project_distill,
+                failure_intelligence_summary=failure_intelligence_summary,
             )
-            result = AIResearchWorkflow(cwd=self.cwd).run(request).to_dict()
-            result["workflow_state"] = "planned"
-            result["automation_mode"] = str(self.collaboration_context.get("ai_research_mode", "guided")).strip() or "guided"
-            result["auto_trigger"] = True
-            return result
+            summary["agent_state"] = summary.get("runtime_state", "planned")
+            summary["selected_discipline"] = discipline
+            summary["selected_by"] = {
+                "explicit_discipline": explicit,
+                "primary_discipline": primary,
+                "task_type": task_type,
+            }
+            return summary
         except Exception as exc:
             return {
-                "workflow_state": "failed",
+                "agent_state": "failed",
                 "error": str(exc),
-                "auto_trigger": True,
+                "selected_discipline": discipline,
             }
 
-    def _should_run_ai_research_workflow(
-        self,
-        topic: str,
-        discipline_adaptation_summary: dict[str, Any],
-    ) -> bool:
-        mode = str(self.collaboration_context.get("ai_research_mode", "auto")).strip().lower()
-        if mode in {"off", "disabled", "false", "0"}:
-            return False
-        if mode in {"on", "guided", "autonomous", "observe"}:
-            return True
-        explicit = str(self.collaboration_context.get("discipline", "")).strip().lower()
-        task_type = str(self.collaboration_context.get("task_type", "")).strip().lower()
-        primary = str(discipline_adaptation_summary.get("primary_discipline", "")).strip().lower()
-        if explicit in {"ai", "artificial_intelligence", "machine_learning"}:
-            return True
-        if primary == "artificial_intelligence":
-            return True
-        if task_type in {
-            "kaggle_competition",
-            "llm_fine_tuning",
-            "benchmark_reproduction",
-            "model_comparison",
-            "ablation_study",
-        }:
-            return True
-        if any(key in self.collaboration_context for key in ("dataset_path", "target_column", "metric", "candidate_models")):
-            return True
-        lowered = topic.lower()
-        return any(
-            token in lowered
-            for token in (
-                "kaggle",
-                "benchmark",
-                "dataset",
-                "classification",
-                "regression",
-                "training",
-                "fine-tuning",
-                "finetune",
-                "llm",
-                "machine learning",
-                "deep learning",
-                "model evaluation",
-                "ablation",
-            )
-        )
-
-    def _infer_ai_task_type(self, topic: str) -> str:
+    def _infer_task_type(self, topic: str) -> str:
         explicit = str(self.collaboration_context.get("task_type", "")).strip()
         if explicit:
             return explicit
@@ -2446,64 +2365,25 @@ class ScientificWorkflow:
     def _derive_research_state(
         self,
         topic: str,
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
         *,
         claim_graph: dict[str, Any],
         run_manifest: dict[str, Any],
     ) -> dict[str, Any]:
-        stage_counts: dict[str, int] = {}
-        blockers: list[str] = []
-        open_questions: list[str] = []
-        active_hypotheses: list[dict[str, Any]] = []
-        negative_results: list[dict[str, Any]] = []
-        evidence_strengths: list[str] = []
-        evidence_quality_grades: list[str] = []
-        conflict_groups: dict[str, list[dict[str, Any]]] = {}
-        experiment_runs: list[dict[str, Any]] = []
-        quality_control_reviews: list[dict[str, Any]] = []
-        interpretation_records: list[dict[str, Any]] = []
+        state_inputs = collect_research_state_inputs(steps)
+        stage_counts = state_inputs["stage_counts"]
+        blockers = state_inputs["blockers"]
+        open_questions = state_inputs["open_questions"]
+        active_hypotheses = state_inputs["active_hypotheses"]
+        negative_results = state_inputs["negative_results"]
+        evidence_strengths = state_inputs["evidence_strengths"]
+        evidence_quality_grades = state_inputs["evidence_quality_grades"]
+        conflict_groups = state_inputs["conflict_groups"]
+        experiment_runs = state_inputs["experiment_runs"]
+        quality_control_reviews = state_inputs["quality_control_reviews"]
+        interpretation_records = state_inputs["interpretation_records"]
 
-        for step in steps:
-            parsed = step.parsed_output
-            stage = parsed.get("stage_assessment", {})
-            if isinstance(stage, dict):
-                current = str(stage.get("current_stage", "")).strip()
-                if current:
-                    stage_counts[current] = stage_counts.get(current, 0) + 1
-                for blocker in stage.get("stage_blockers", []) if isinstance(stage.get("stage_blockers", []), list) else []:
-                    if blocker:
-                        blockers.append(str(blocker))
-            for question in parsed.get("open_questions", []) if isinstance(parsed.get("open_questions", []), list) else []:
-                if question:
-                    open_questions.append(str(question))
-            for item in parsed.get("hypotheses", []) if isinstance(parsed.get("hypotheses", []), list) else []:
-                if isinstance(item, dict):
-                    active_hypotheses.append(item)
-            for item in parsed.get("negative_results", []) if isinstance(parsed.get("negative_results", []), list) else []:
-                if isinstance(item, dict):
-                    negative_results.append(item)
-            for evidence in parsed.get("evidence", []) if isinstance(parsed.get("evidence", []), list) else []:
-                if isinstance(evidence, dict):
-                    strength = str(evidence.get("strength", "")).strip()
-                    if strength:
-                        evidence_strengths.append(strength)
-                    quality_grade = str(evidence.get("quality_grade", "")).strip().lower()
-                    if quality_grade:
-                        evidence_quality_grades.append(quality_grade)
-                    conflict_group = str(evidence.get("conflict_group", "")).strip()
-                    if conflict_group:
-                        conflict_groups.setdefault(conflict_group, []).append(evidence)
-            run_payload = parsed.get("experiment_run", {})
-            if isinstance(run_payload, dict) and run_payload:
-                experiment_runs.append(run_payload)
-            quality_payload = parsed.get("quality_control_review", {})
-            if isinstance(quality_payload, dict) and quality_payload:
-                quality_control_reviews.append(quality_payload)
-            interpretation_payload = parsed.get("interpretation_record", {})
-            if isinstance(interpretation_payload, dict) and interpretation_payload:
-                interpretation_records.append(interpretation_payload)
-
-        stage_validation = ScientificWorkflow._validate_stage_progression(steps)
+        stage_validation = ResearchDirector._validate_stage_progression(steps)
         current_stage = stage_validation["current_stage"]
         next_stage = stage_validation["recommended_next_stage"]
         blockers.extend(stage_validation.get("blockers", []))
@@ -2527,68 +2407,68 @@ class ScientificWorkflow:
             else:
                 evidence_summary = "mixed"
 
-        quality_summary = ScientificWorkflow._summarize_quality_grades(evidence_quality_grades)
-        conflict_summary = ScientificWorkflow._summarize_conflict_groups(conflict_groups)
-        literature_synthesis = ScientificWorkflow._derive_literature_synthesis(steps)
-        systematic_review_summary = ScientificWorkflow._derive_systematic_review_draft(steps)
-        causal_reasoning = ScientificWorkflow._derive_causal_reasoning(steps)
-        analysis_rigor = ScientificWorkflow._derive_analysis_rigor(steps)
-        consensus_state = ScientificWorkflow._derive_consensus_state(steps)
-        autonomy_summary = ScientificWorkflow._derive_autonomy_summary(
+        quality_summary = ResearchDirector._summarize_quality_grades(evidence_quality_grades)
+        conflict_summary = ResearchDirector._summarize_conflict_groups(conflict_groups)
+        literature_synthesis = ResearchDirector._derive_literature_synthesis(steps)
+        systematic_review_summary = ResearchDirector._derive_systematic_review_draft(steps)
+        causal_reasoning = ResearchDirector._derive_causal_reasoning(steps)
+        analysis_rigor = ResearchDirector._derive_analysis_rigor(steps)
+        consensus_state = ResearchDirector._derive_consensus_state(steps)
+        autonomy_summary = ResearchDirector._derive_autonomy_summary(
             topic=topic,
             steps=steps,
             stage_validation=stage_validation,
         )
-        research_plan_summary = ScientificWorkflow._derive_research_plan_summary(
+        research_plan_summary = ResearchDirector._derive_research_plan_summary(
             topic=topic,
             steps=steps,
             stage_validation=stage_validation,
         )
-        causal_graph_summary = ScientificWorkflow._derive_causal_graph_summary(
+        causal_graph_summary = ResearchDirector._derive_causal_graph_summary(
             steps=steps,
             claim_graph=claim_graph,
         )
-        discipline_adaptation_summary = ScientificWorkflow._derive_discipline_adaptation_summary(
+        discipline_adaptation_summary = ResearchDirector._derive_discipline_adaptation_summary(
             topic=topic,
             steps=steps,
             claim_graph=claim_graph,
         )
-        hypothesis_tree = ScientificWorkflow._derive_hypothesis_tree(claim_graph)
-        asset_registry_summary = ScientificWorkflow._summarize_asset_registry(
+        hypothesis_tree = ResearchDirector._derive_hypothesis_tree(claim_graph)
+        asset_registry_summary = ResearchDirector._summarize_asset_registry(
             claim_graph.get("asset_registry", []),
             run_manifest,
         )
-        asset_graph_summary = ScientificWorkflow._derive_asset_graph_summary(
+        asset_graph_summary = ResearchDirector._derive_asset_graph_summary(
             claim_graph=claim_graph,
             run_manifest=run_manifest,
         )
-        consensus_state_machine = ScientificWorkflow._derive_consensus_state_machine(
+        consensus_state_machine = ResearchDirector._derive_consensus_state_machine(
             consensus_state=consensus_state,
             conflict_summary=conflict_summary,
             stage_validation=stage_validation,
             negative_results=negative_results,
         )
-        execution_cycle_summary = ScientificWorkflow._derive_execution_cycle_summary(
+        execution_cycle_summary = ResearchDirector._derive_execution_cycle_summary(
             experiment_runs=experiment_runs,
             quality_control_reviews=quality_control_reviews,
             interpretation_records=interpretation_records,
         )
-        belief_update_summary = ScientificWorkflow._derive_belief_update_summary(
+        belief_update_summary = ResearchDirector._derive_belief_update_summary(
             steps=steps,
             claim_graph=claim_graph,
         )
-        experiment_governance_summary = ScientificWorkflow._derive_experiment_governance_summary(
+        experiment_governance_summary = ResearchDirector._derive_experiment_governance_summary(
             experiment_runs=experiment_runs,
             quality_control_reviews=quality_control_reviews,
             interpretation_records=interpretation_records,
             claim_graph=claim_graph,
         )
-        failure_intelligence_summary = ScientificWorkflow._derive_failure_intelligence_summary(
+        failure_intelligence_summary = ResearchDirector._derive_failure_intelligence_summary(
             steps=steps,
             claim_graph=claim_graph,
             execution_cycle_summary=execution_cycle_summary,
         )
-        experiment_economics_summary = ScientificWorkflow._derive_experiment_economics_summary(
+        experiment_economics_summary = ResearchDirector._derive_experiment_economics_summary(
             topic=topic,
             steps=steps,
             research_plan_summary=research_plan_summary,
@@ -2596,7 +2476,7 @@ class ScientificWorkflow:
             execution_cycle_summary=execution_cycle_summary,
             failure_intelligence_summary=failure_intelligence_summary,
         )
-        lab_meeting_consensus_summary = ScientificWorkflow._derive_lab_meeting_consensus_summary(
+        lab_meeting_consensus_summary = ResearchDirector._derive_lab_meeting_consensus_summary(
             steps=steps,
             consensus_state=consensus_state,
             consensus_state_machine=consensus_state_machine,
@@ -2608,37 +2488,37 @@ class ScientificWorkflow:
             lab_meeting_consensus_summary=lab_meeting_consensus_summary,
         )
         theoretical_hypothesis_tree_summary = (
-            ScientificWorkflow._derive_theoretical_hypothesis_tree_summary(
+            ResearchDirector._derive_theoretical_hypothesis_tree_summary(
                 claim_graph=claim_graph,
                 hypothesis_tree=hypothesis_tree,
                 discipline_adaptation_summary=discipline_adaptation_summary,
             )
         )
-        mechanism_reasoning_summary = ScientificWorkflow._derive_mechanism_reasoning_summary(
+        mechanism_reasoning_summary = ResearchDirector._derive_mechanism_reasoning_summary(
             steps=steps,
             causal_graph_summary=causal_graph_summary,
         )
-        hypothesis_family_lifecycle_summary = ScientificWorkflow._derive_hypothesis_family_lifecycle_summary(
+        hypothesis_family_lifecycle_summary = ResearchDirector._derive_hypothesis_family_lifecycle_summary(
             steps=steps,
             theoretical_hypothesis_tree_summary=theoretical_hypothesis_tree_summary,
         )
-        program_management_summary = ScientificWorkflow._derive_program_management_summary(
+        program_management_summary = ResearchDirector._derive_program_management_summary(
             topic=topic,
             steps=steps,
             research_plan_summary=research_plan_summary,
             autonomy_summary=autonomy_summary,
             route_temperature_summary={},
         )
-        domain_playbook_summary = ScientificWorkflow._derive_domain_playbook_summary(
+        domain_playbook_summary = ResearchDirector._derive_domain_playbook_summary(
             topic=topic,
             steps=steps,
             discipline_adaptation_summary=discipline_adaptation_summary,
         )
-        hypothesis_validation_summary = ScientificWorkflow._derive_hypothesis_validation_summary(
+        hypothesis_validation_summary = ResearchDirector._derive_hypothesis_validation_summary(
             steps=steps,
             claim_graph=claim_graph,
         )
-        hypothesis_gate_summary = ScientificWorkflow._derive_hypothesis_gate_summary(
+        hypothesis_gate_summary = ResearchDirector._derive_hypothesis_gate_summary(
             steps=steps,
             hypothesis_validation_summary=hypothesis_validation_summary,
         )
@@ -2654,7 +2534,7 @@ class ScientificWorkflow:
             agent_stance_continuity_summary=agent_stance_continuity_summary,
             project_distill={},
         )
-        graph_reference_summary = ScientificWorkflow._derive_graph_reference_summary(steps)
+        graph_reference_summary = ResearchDirector._derive_graph_reference_summary(steps)
         evaluation_history_summary = (
             self.collaboration_context.get("evaluation_history_summary", {})
             if isinstance(self.collaboration_context.get("evaluation_history_summary", {}), dict)
@@ -2665,7 +2545,7 @@ class ScientificWorkflow:
             if isinstance(self.collaboration_context.get("typed_research_graph_history", {}), dict)
             else {}
         )
-        route_temperature_summary = ScientificWorkflow._derive_route_temperature_summary(
+        route_temperature_summary = ResearchDirector._derive_route_temperature_summary(
             claim_graph=claim_graph,
             failure_intelligence_summary=failure_intelligence_summary,
             graph_reference_summary=graph_reference_summary,
@@ -2673,37 +2553,37 @@ class ScientificWorkflow:
             evaluation_history_summary=evaluation_history_summary,
             theoretical_hypothesis_tree_summary=theoretical_hypothesis_tree_summary,
         )
-        program_management_summary = ScientificWorkflow._derive_program_management_summary(
+        program_management_summary = ResearchDirector._derive_program_management_summary(
             topic=topic,
             steps=steps,
             research_plan_summary=research_plan_summary,
             autonomy_summary=autonomy_summary,
             route_temperature_summary=route_temperature_summary,
         )
-        graph_learning_summary = ScientificWorkflow._derive_graph_learning_summary(
+        graph_learning_summary = ResearchDirector._derive_graph_learning_summary(
             typed_research_graph_history=typed_research_graph_history,
             graph_reference_summary=graph_reference_summary,
             failure_intelligence_summary=failure_intelligence_summary,
             evaluation_history_summary=evaluation_history_summary,
         )
         mechanism_family_lifecycle_summary = (
-            ScientificWorkflow._derive_mechanism_family_lifecycle_summary(
+            ResearchDirector._derive_mechanism_family_lifecycle_summary(
                 steps=steps,
                 mechanism_reasoning_summary=mechanism_reasoning_summary,
             )
         )
-        artifact_provenance_summary = ScientificWorkflow._derive_artifact_provenance_summary(
+        artifact_provenance_summary = ResearchDirector._derive_artifact_provenance_summary(
             claim_graph=claim_graph,
             run_manifest=run_manifest,
             asset_graph_summary=asset_graph_summary,
         )
-        program_portfolio_summary = ScientificWorkflow._derive_program_portfolio_summary(
+        program_portfolio_summary = ResearchDirector._derive_program_portfolio_summary(
             program_management_summary=program_management_summary,
             route_temperature_summary=route_temperature_summary,
             experiment_economics_summary=experiment_economics_summary,
             termination_strategy_summary={},
         )
-        formal_review_record_summary = ScientificWorkflow._derive_formal_review_record_summary(
+        formal_review_record_summary = ResearchDirector._derive_formal_review_record_summary(
             systematic_review_summary=systematic_review_summary,
         )
         literature_ingest_policy_summary = decide_literature_ingest_policy(
@@ -2730,7 +2610,7 @@ class ScientificWorkflow:
             formal_review_record_summary=formal_review_record_summary,
             claim_graph=claim_graph,
         )
-        systematic_review_summary = ScientificWorkflow._derive_systematic_review_summary(
+        systematic_review_summary = ResearchDirector._derive_systematic_review_summary(
             topic=topic,
             systematic_review_summary=systematic_review_summary,
             literature_synthesis=literature_synthesis,
@@ -2758,7 +2638,7 @@ class ScientificWorkflow:
             mechanism_reasoning_summary=mechanism_reasoning_summary,
             problem_reframer_summary=scientific_problem_reframer_summary,
         )
-        evaluation_summary = ScientificWorkflow._derive_evaluation_summary(
+        evaluation_summary = ResearchDirector._derive_evaluation_summary(
             claim_graph=claim_graph,
             literature_quality_summary=quality_summary,
             consensus_state_machine=consensus_state_machine,
@@ -2775,7 +2655,7 @@ class ScientificWorkflow:
             graph_learning_summary=graph_learning_summary,
         )
         human_governance_checkpoint_summary = (
-            ScientificWorkflow._derive_human_governance_checkpoint_summary(
+            ResearchDirector._derive_human_governance_checkpoint_summary(
                 topic=topic,
                 termination_strategy_summary={},
                 lab_meeting_consensus_summary=lab_meeting_consensus_summary,
@@ -2785,7 +2665,7 @@ class ScientificWorkflow:
                 evaluation_summary=evaluation_summary,
             )
         )
-        project_distill = ScientificWorkflow._derive_project_distill(
+        project_distill = ResearchDirector._derive_project_distill(
             topic=topic,
             steps=steps,
             literature_synthesis=literature_synthesis,
@@ -2802,7 +2682,7 @@ class ScientificWorkflow:
             agent_stance_continuity_summary=agent_stance_continuity_summary,
             project_distill=project_distill,
         )
-        termination_strategy_summary = ScientificWorkflow._derive_termination_strategy_summary(
+        termination_strategy_summary = ResearchDirector._derive_termination_strategy_summary(
             topic=topic,
             claim_graph=claim_graph,
             research_plan_summary=research_plan_summary,
@@ -2814,14 +2694,14 @@ class ScientificWorkflow:
             experiment_economics_summary=experiment_economics_summary,
             lab_meeting_consensus_summary=lab_meeting_consensus_summary,
         )
-        program_portfolio_summary = ScientificWorkflow._derive_program_portfolio_summary(
+        program_portfolio_summary = ResearchDirector._derive_program_portfolio_summary(
             program_management_summary=program_management_summary,
             route_temperature_summary=route_temperature_summary,
             experiment_economics_summary=experiment_economics_summary,
             termination_strategy_summary=termination_strategy_summary,
         )
         human_governance_checkpoint_summary = (
-            ScientificWorkflow._derive_human_governance_checkpoint_summary(
+            ResearchDirector._derive_human_governance_checkpoint_summary(
                 topic=topic,
                 termination_strategy_summary=termination_strategy_summary,
                 lab_meeting_consensus_summary=lab_meeting_consensus_summary,
@@ -2831,7 +2711,7 @@ class ScientificWorkflow:
                 evaluation_summary=evaluation_summary,
             )
         )
-        benchmark_harness_summary = ScientificWorkflow._derive_benchmark_harness_summary(
+        benchmark_harness_summary = ResearchDirector._derive_benchmark_harness_summary(
             topic=topic,
             evaluation_summary=evaluation_summary,
             systematic_review_summary=systematic_review_summary,
@@ -2844,7 +2724,7 @@ class ScientificWorkflow:
             hypothesis_family_lifecycle_summary=hypothesis_family_lifecycle_summary,
             human_governance_checkpoint_summary=human_governance_checkpoint_summary,
         )
-        research_route_search_summary = ScientificWorkflow._derive_research_route_search_summary(
+        research_route_search_summary = ResearchDirector._derive_research_route_search_summary(
             topic=topic,
             research_plan_summary=research_plan_summary,
             autonomy_summary=autonomy_summary,
@@ -2871,7 +2751,7 @@ class ScientificWorkflow:
             lab_meeting_consensus_summary=lab_meeting_consensus_summary,
             termination_strategy_summary=termination_strategy_summary,
         )
-        ai_research_workflow_summary = self._derive_ai_research_workflow_summary(
+        discipline_agent_summary = self._derive_discipline_agent_summary(
             topic=topic,
             literature_synthesis=literature_synthesis,
             systematic_review_summary=systematic_review_summary,
@@ -2896,10 +2776,6 @@ class ScientificWorkflow:
             hypothesis_gate_summary=hypothesis_gate_summary,
             mid_run_control_summary=mid_run_control_summary,
             scheduler_memory_context=scheduler_memory_context,
-        )
-        experiment_execution_loop_summary = augment_experiment_execution_loop_with_ai(
-            experiment_execution_loop_summary,
-            ai_research_workflow_summary=ai_research_workflow_summary,
         )
         optimization_adapter_summary = build_optimization_adapter_summary(
             topic=topic,
@@ -2932,10 +2808,6 @@ class ScientificWorkflow:
             discipline_adapter_summary=discipline_adapter_summary,
             mid_run_control_summary=mid_run_control_summary,
             scheduler_memory_context=scheduler_memory_context,
-        )
-        experiment_execution_loop_summary = augment_experiment_execution_loop_with_ai(
-            experiment_execution_loop_summary,
-            ai_research_workflow_summary=ai_research_workflow_summary,
         )
         optimization_adapter_summary = build_optimization_adapter_summary(
             topic=topic,
@@ -3042,7 +2914,7 @@ class ScientificWorkflow:
             "scientific_problem_reframer_summary": scientific_problem_reframer_summary,
             "theory_prediction_compiler_summary": theory_prediction_compiler_summary,
             "literature_ingest_policy_summary": literature_ingest_policy_summary,
-            "ai_research_workflow_summary": ai_research_workflow_summary,
+            "discipline_agent_summary": discipline_agent_summary,
             "experiment_execution_loop_summary": experiment_execution_loop_summary,
             "discipline_adapter_summary": discipline_adapter_summary,
             "discipline_toolchain_binding_summary": discipline_toolchain_binding_summary,
@@ -3114,7 +2986,7 @@ class ScientificWorkflow:
             "scientific_problem_reframer_summary": scientific_problem_reframer_summary,
             "theory_prediction_compiler_summary": theory_prediction_compiler_summary,
             "literature_ingest_policy_summary": literature_ingest_policy_summary,
-            "ai_research_workflow_summary": ai_research_workflow_summary,
+            "discipline_agent_summary": discipline_agent_summary,
             "run_handoff_contract_summary": run_handoff_contract_summary,
             "discipline_toolchain_binding_summary": discipline_toolchain_binding_summary,
             "experiment_risk_permission_summary": experiment_risk_permission_summary,
@@ -3259,7 +3131,7 @@ class ScientificWorkflow:
             claim_graph=claim_graph,
         )
         reliability_state["memory_conflict_version_graph_summary"] = memory_conflict_version_graph_summary
-        hypothesis_system_summary = ScientificWorkflow._derive_hypothesis_system_summary(
+        hypothesis_system_summary = ResearchDirector._derive_hypothesis_system_summary(
             topic=topic,
             hypothesis_tree_summary=hypothesis_tree,
             theoretical_hypothesis_tree_summary=theoretical_hypothesis_tree_summary,
@@ -3269,14 +3141,14 @@ class ScientificWorkflow:
             mechanism_family_lifecycle_summary=mechanism_family_lifecycle_summary,
             theory_prediction_compiler_summary=theory_prediction_compiler_summary,
         )
-        scientific_evaluation_system_summary = ScientificWorkflow._derive_scientific_evaluation_system_summary(
+        scientific_evaluation_system_summary = ResearchDirector._derive_scientific_evaluation_system_summary(
             topic=topic,
             benchmark_harness_summary=benchmark_harness_summary,
             benchmark_case_suite_summary=benchmark_case_suite_summary,
             kaivu_evaluation_harness_summary=kaivu_evaluation_harness_summary,
             evaluation_summary=evaluation_summary,
         )
-        workflow_control_summary = ScientificWorkflow._derive_workflow_control_summary(
+        workflow_control_summary = ResearchDirector._derive_workflow_control_summary(
             topic=topic,
             current_stage=current_stage,
             recommended_next_stage=next_stage,
@@ -3427,25 +3299,7 @@ class ScientificWorkflow:
             "scientific_problem_reframer_summary": scientific_problem_reframer_summary,
             "theory_prediction_compiler_summary": theory_prediction_compiler_summary,
             "literature_ingest_policy_summary": literature_ingest_policy_summary,
-            "ai_research_workflow_summary": ai_research_workflow_summary,
-            "ai_dataset_profile": ai_research_workflow_summary.get("dataset_profile", {})
-            if isinstance(ai_research_workflow_summary, dict)
-            else {},
-            "ai_contamination_risk_report": ai_research_workflow_summary.get("contamination_risk_report", {})
-            if isinstance(ai_research_workflow_summary, dict)
-            else {},
-            "ai_evaluation_protocol": ai_research_workflow_summary.get("evaluation_protocol", {})
-            if isinstance(ai_research_workflow_summary, dict)
-            else {},
-            "ai_training_recipe": ai_research_workflow_summary.get("training_recipe", {})
-            if isinstance(ai_research_workflow_summary, dict)
-            else {},
-            "ai_ablation_plan": ai_research_workflow_summary.get("ablation_plan", {})
-            if isinstance(ai_research_workflow_summary, dict)
-            else {},
-            "ai_artifact_contract": ai_research_workflow_summary.get("artifact_contract", {})
-            if isinstance(ai_research_workflow_summary, dict)
-            else {},
+            "discipline_agent_summary": discipline_agent_summary,
             "anomaly_surprise_detector_summary": anomaly_surprise_detector_summary,
             "scientific_credit_responsibility_ledger_summary": scientific_credit_responsibility_ledger_summary,
             "mechanism_family_lifecycle_summary": mechanism_family_lifecycle_summary,
@@ -3535,7 +3389,7 @@ class ScientificWorkflow:
         return sequence
 
     @staticmethod
-    def _validate_stage_progression(steps: list[WorkflowStepResult]) -> dict[str, Any]:
+    def _validate_stage_progression(steps: list[ResearchDirectorStepResult]) -> dict[str, Any]:
         stage_sequence: list[str] = []
         invalid_transitions: list[str] = []
         blockers: list[str] = []
@@ -3625,208 +3479,21 @@ class ScientificWorkflow:
 
     @staticmethod
     def _summarize_quality_grades(grades: list[str]) -> dict[str, Any]:
-        if not grades:
-            return {"dominant_grade": "unclear", "counts": {}}
-        counts: dict[str, int] = {}
-        for grade in grades:
-            normalized = grade.strip().lower()
-            if not normalized:
-                continue
-            counts[normalized] = counts.get(normalized, 0) + 1
-        dominant = max(counts.items(), key=lambda item: item[1])[0] if counts else "unclear"
-        return {"dominant_grade": dominant, "counts": counts}
+        return summarize_quality_grades(grades)
 
     @staticmethod
     def _summarize_conflict_groups(
         conflict_groups: dict[str, list[dict[str, Any]]]
     ) -> dict[str, Any]:
-        groups: list[dict[str, Any]] = []
-        for group_name, items in conflict_groups.items():
-            directions = {
-                str(item.get("evidence_direction", "")).strip().lower()
-                for item in items
-                if str(item.get("evidence_direction", "")).strip()
-            }
-            strengths = [
-                str(item.get("strength", "")).strip().lower()
-                for item in items
-                if str(item.get("strength", "")).strip()
-            ]
-            groups.append(
-                {
-                    "conflict_group": group_name,
-                    "evidence_count": len(items),
-                    "directions": sorted(directions),
-                    "has_directional_conflict": len(directions) > 1,
-                    "strengths": strengths,
-                    "notes": [
-                        str(item.get("conflict_note", "")).strip()
-                        for item in items
-                        if str(item.get("conflict_note", "")).strip()
-                    ][:5],
-                }
-            )
-        return {
-            "conflict_group_count": len(groups),
-            "directional_conflict_count": len(
-                [item for item in groups if item.get("has_directional_conflict")]
-            ),
-            "groups": groups[:10],
-        }
+        return summarize_conflict_groups(conflict_groups)
 
     @staticmethod
-    def _derive_literature_synthesis(steps: list[WorkflowStepResult]) -> dict[str, Any]:
-        consensus_findings: list[str] = []
-        contested_questions: list[str] = []
-        evidence_matrix: list[dict[str, Any]] = []
-        evidence_gaps: list[str] = []
-        for step in steps:
-            parsed = step.parsed_output
-            synthesis = parsed.get("literature_synthesis", {})
-            if isinstance(synthesis, dict):
-                consensus_findings.extend(
-                    str(item) for item in synthesis.get("consensus_findings", []) if str(item).strip()
-                )
-                contested_questions.extend(
-                    str(item) for item in synthesis.get("contested_questions", []) if str(item).strip()
-                )
-                for item in synthesis.get("evidence_matrix", []):
-                    if isinstance(item, dict):
-                        evidence_matrix.append(item)
-            evidence_gaps.extend(
-                str(item) for item in parsed.get("evidence_gaps", []) if str(item).strip()
-            )
-        return {
-            "consensus_findings": list(dict.fromkeys(consensus_findings))[:8],
-            "contested_questions": list(dict.fromkeys(contested_questions))[:8],
-            "evidence_matrix": evidence_matrix[:12],
-            "evidence_gaps": list(dict.fromkeys(evidence_gaps))[:10],
-        }
+    def _derive_literature_synthesis(steps: list[ResearchDirectorStepResult]) -> dict[str, Any]:
+        return derive_literature_synthesis(steps)
 
     @staticmethod
-    def _derive_systematic_review_draft(steps: list[WorkflowStepResult]) -> dict[str, Any]:
-        review_question = ""
-        review_protocol_version = ""
-        study_types: list[str] = []
-        inclusion_logic: list[str] = []
-        exclusion_logic: list[str] = []
-        screening_decisions: list[str] = []
-        exclusion_reasons: list[str] = []
-        evidence_balance: list[str] = []
-        bias_hotspots: list[str] = []
-        evidence_table_focus: list[str] = []
-        evidence_table_records: list[str] = []
-        review_protocol_gaps: list[str] = []
-        quality_counts: dict[str, int] = {}
-        screened_evidence_count = 0
-        for step in steps:
-            parsed = step.parsed_output
-            systematic = parsed.get("systematic_review", {})
-            if isinstance(systematic, dict):
-                review_question = review_question or str(systematic.get("review_question", "")).strip()
-                review_protocol_version = review_protocol_version or str(systematic.get("review_protocol_version", "")).strip()
-                study_types.extend(
-                    str(item) for item in systematic.get("study_type_hierarchy", []) if str(item).strip()
-                )
-                inclusion_logic.extend(
-                    str(item) for item in systematic.get("inclusion_logic", []) if str(item).strip()
-                )
-                exclusion_logic.extend(
-                    str(item) for item in systematic.get("exclusion_logic", []) if str(item).strip()
-                )
-                screening_decisions.extend(
-                    str(item) for item in systematic.get("screening_decisions", []) if str(item).strip()
-                )
-                exclusion_reasons.extend(
-                    str(item) for item in systematic.get("exclusion_reasons", []) if str(item).strip()
-                )
-                evidence_balance.extend(
-                    str(item) for item in systematic.get("evidence_balance", []) if str(item).strip()
-                )
-                bias_hotspots.extend(
-                    str(item) for item in systematic.get("bias_hotspots", []) if str(item).strip()
-                )
-                evidence_table_focus.extend(
-                    str(item) for item in systematic.get("evidence_table_focus", []) if str(item).strip()
-                )
-                evidence_table_records.extend(
-                    str(item) for item in systematic.get("evidence_table_records", []) if str(item).strip()
-                )
-                review_protocol_gaps.extend(
-                    str(item) for item in systematic.get("review_protocol_gaps", []) if str(item).strip()
-                )
-            for item in parsed.get("evidence", []) if isinstance(parsed.get("evidence", []), list) else []:
-                if not isinstance(item, dict):
-                    continue
-                screened_evidence_count += 1
-                study_type = str(item.get("study_type", "")).strip()
-                quality_grade = str(item.get("quality_grade", "")).strip().lower()
-                if study_type:
-                    study_types.append(study_type)
-                    screening_decisions.append(f"screened evidence from {study_type}")
-                if quality_grade:
-                    quality_counts[quality_grade] = quality_counts.get(quality_grade, 0) + 1
-                bias = str(item.get("bias_risk", "")).strip()
-                if bias and bias.lower() in {"high", "medium", "unclear"}:
-                    bias_hotspots.append(
-                        f"{study_type or 'unknown study'} bias risk {bias.lower()}"
-                    )
-                    exclusion_reasons.append(
-                        f"downweight {study_type or 'unknown study'} because bias risk is {bias.lower()}"
-                    )
-                conflict_group = str(item.get("conflict_group", "")).strip()
-                if conflict_group:
-                    evidence_table_focus.append(f"conflict group {conflict_group}")
-                    evidence_table_records.append(
-                        f"{study_type or 'unknown study'} -> conflict group {conflict_group}"
-                    )
-        ordered_types = list(dict.fromkeys(study_types))
-        balance_lines = list(dict.fromkeys(evidence_balance))
-        if quality_counts:
-            balance_lines.append(
-                "quality counts: "
-                + ", ".join(f"{key}={value}" for key, value in sorted(quality_counts.items()))
-            )
-        if not inclusion_logic:
-            inclusion_logic = ["Prioritize primary evidence, direct measurements, and reproducible analyses."]
-        if not exclusion_logic:
-            exclusion_logic = ["Downweight weakly described, high-bias, or indirect evidence."]
-        if not exclusion_reasons:
-            exclusion_reasons = ["Exclude or downweight evidence with unclear methods, weak traceability, or high bias."]
-        if not screening_decisions:
-            screening_decisions = ["Screen studies by direct relevance, study quality, and traceable methodology."]
-        if not evidence_table_focus and review_question:
-            evidence_table_focus = [review_question]
-        if not evidence_table_records and evidence_table_focus:
-            evidence_table_records = [f"focus evidence table on {item}" for item in evidence_table_focus[:3]]
-        if not review_question:
-            review_protocol_gaps.append("review question is still underspecified")
-        if not review_protocol_version:
-            review_protocol_gaps.append("review protocol version has not been declared")
-            review_protocol_version = "draft-v1"
-        if not ordered_types:
-            review_protocol_gaps.append("study hierarchy has not been stabilized")
-        if screened_evidence_count < 3:
-            review_protocol_gaps.append("evidence screening depth is still shallow")
-        return {
-            "review_question": review_question,
-            "review_protocol_version": review_protocol_version,
-            "study_type_hierarchy": ordered_types[:10],
-            "inclusion_logic": list(dict.fromkeys(inclusion_logic))[:6],
-            "exclusion_logic": list(dict.fromkeys(exclusion_logic))[:6],
-            "screening_decisions": list(dict.fromkeys(screening_decisions))[:8],
-            "exclusion_reasons": list(dict.fromkeys(exclusion_reasons))[:8],
-            "evidence_balance": balance_lines[:8],
-            "bias_hotspots": list(dict.fromkeys(bias_hotspots))[:8],
-            "evidence_table_focus": list(dict.fromkeys(evidence_table_focus))[:8],
-            "evidence_table_records": list(dict.fromkeys(evidence_table_records))[:10],
-            "review_protocol_gaps": list(dict.fromkeys(review_protocol_gaps))[:8],
-            "screened_evidence_count": screened_evidence_count,
-            "study_type_counts": {
-                item: study_types.count(item)
-                for item in ordered_types[:10]
-            },
-        }
+    def _derive_systematic_review_draft(steps: list[ResearchDirectorStepResult]) -> dict[str, Any]:
+        return derive_systematic_review_draft(steps)
 
     @staticmethod
     def _derive_systematic_review_summary(
@@ -3855,7 +3522,7 @@ class ScientificWorkflow:
         for index, item in enumerate(evidence, start=1):
             evidence_id = str(item.get("global_evidence_id", "") or item.get("evidence_id", "") or f"evidence::{index}").strip()
             local_evidence_id = str(item.get("evidence_id", "")).strip()
-            claim_refs = ScientificWorkflow._strings(item.get("claim_refs", []))
+            claim_refs = ResearchDirector._strings(item.get("claim_refs", []))
             if not claim_refs:
                 claim_refs = evidence_claim_refs.get(evidence_id, []) or evidence_claim_refs.get(local_evidence_id, [])
             evidence_table.append(
@@ -3864,15 +3531,15 @@ class ScientificWorkflow:
                     "source_id": str(item.get("source_id", "") or item.get("citation", "")).strip(),
                     "evidence_type": str(item.get("evidence_type", "") or item.get("type", "study")).strip(),
                     "claim_refs": list(dict.fromkeys(claim_refs))[:10],
-                    "effect_direction": ScientificWorkflow._effect_direction(str(item)),
+                    "effect_direction": ResearchDirector._effect_direction(str(item)),
                     "evidence_grade": str(item.get("quality_grade", "") or item.get("evidence_level", "") or "unclear").strip().lower(),
                     "bias_risk": str(item.get("bias_risk", "")).strip().lower(),
                     "sample_or_scope": str(item.get("sample_size", "") or item.get("scope", "")).strip(),
                     "method": str(item.get("method", "") or item.get("measurement_method", "")).strip(),
-                    "limitations": ScientificWorkflow._strings(item.get("limitations", []))[:6],
+                    "limitations": ResearchDirector._strings(item.get("limitations", []))[:6],
                 }
             )
-        conflicts = ScientificWorkflow._strings(literature_synthesis.get("contested_questions", []))
+        conflicts = ResearchDirector._strings(literature_synthesis.get("contested_questions", []))
         if not conflicts:
             directions = {str(item.get("effect_direction", "")) for item in evidence_table}
             if len(directions.intersection({"positive", "negative", "null"})) >= 2:
@@ -3890,15 +3557,15 @@ class ScientificWorkflow:
         bias_records = [
             {
                 "evidence_id": item.get("evidence_id", ""),
-                "bias_risk": ScientificWorkflow._bias_risk(item),
-                "bias_domains": ScientificWorkflow._bias_domains(item),
+                "bias_risk": ResearchDirector._bias_risk(item),
+                "bias_domains": ResearchDirector._bias_domains(item),
                 "mitigation": "downgrade synthesis confidence or require replication"
-                if ScientificWorkflow._bias_risk(item) != "low"
+                if ResearchDirector._bias_risk(item) != "low"
                 else "none",
             }
             for item in evidence_table
         ]
-        protocol_gaps = ScientificWorkflow._strings(systematic_review_summary.get("review_protocol_gaps", []))
+        protocol_gaps = ResearchDirector._strings(systematic_review_summary.get("review_protocol_gaps", []))
         high_bias = len([item for item in bias_records if item.get("bias_risk") == "high"])
         synthesis_state = (
             "blocked"
@@ -3908,7 +3575,7 @@ class ScientificWorkflow:
             else "synthesis_ready"
         )
         engine = {
-            "systematic_review_engine_id": f"systematic-review::{ScientificWorkflow._slugify(topic)}",
+            "systematic_review_engine_id": f"systematic-review::{ResearchDirector._slugify(topic)}",
             "topic": topic,
             "review_question": str(systematic_review_summary.get("review_question", "") or topic).strip(),
             "protocol_state": (
@@ -3927,20 +3594,20 @@ class ScientificWorkflow:
                 "versioning_rule": "record search query, date, source, and inclusion/exclusion change on every update",
             },
             "screening": {
-                "screening_record_count": len(ScientificWorkflow._strings(systematic_review_summary.get("screening_records", []))),
-                "inclusion_criteria": ScientificWorkflow._strings(systematic_review_summary.get("inclusion_logic", [])),
-                "exclusion_criteria": ScientificWorkflow._strings(systematic_review_summary.get("exclusion_logic", [])),
+                "screening_record_count": len(ResearchDirector._strings(systematic_review_summary.get("screening_records", []))),
+                "inclusion_criteria": ResearchDirector._strings(systematic_review_summary.get("inclusion_logic", [])),
+                "exclusion_criteria": ResearchDirector._strings(systematic_review_summary.get("exclusion_logic", [])),
                 "protocol_gaps": protocol_gaps,
             },
             "evidence_table": evidence_table[:120],
-            "evidence_grade_counts": ScientificWorkflow._count_by(evidence_table, "evidence_grade"),
+            "evidence_grade_counts": ResearchDirector._count_by(evidence_table, "evidence_grade"),
             "bias_records": bias_records[:120],
-            "bias_risk_counts": ScientificWorkflow._count_by(bias_records, "bias_risk"),
+            "bias_risk_counts": ResearchDirector._count_by(bias_records, "bias_risk"),
             "conflict_matrix": conflict_matrix[:80],
             "synthesis_state": synthesis_state,
-            "meta_analysis_readiness": ScientificWorkflow._meta_analysis_readiness(evidence_table),
-            "decision_implications": ScientificWorkflow._review_decision_implications(synthesis_state, conflict_matrix, evidence_review_summary),
-            "scheduler_constraints": ScientificWorkflow._review_scheduler_constraints(synthesis_state, protocol_gaps, conflict_matrix),
+            "meta_analysis_readiness": ResearchDirector._meta_analysis_readiness(evidence_table),
+            "decision_implications": ResearchDirector._review_decision_implications(synthesis_state, conflict_matrix, evidence_review_summary),
+            "scheduler_constraints": ResearchDirector._review_scheduler_constraints(synthesis_state, protocol_gaps, conflict_matrix),
         }
         return {
             **systematic_review_summary,
@@ -3956,7 +3623,7 @@ class ScientificWorkflow:
         }
 
     @staticmethod
-    def _derive_causal_reasoning(steps: list[WorkflowStepResult]) -> dict[str, Any]:
+    def _derive_causal_reasoning(steps: list[ResearchDirectorStepResult]) -> dict[str, Any]:
         assumptions: list[str] = []
         confounders: list[str] = []
         alternatives: list[str] = []
@@ -3991,7 +3658,7 @@ class ScientificWorkflow:
         }
 
     @staticmethod
-    def _derive_analysis_rigor(steps: list[WorkflowStepResult]) -> dict[str, Any]:
+    def _derive_analysis_rigor(steps: list[ResearchDirectorStepResult]) -> dict[str, Any]:
         power_notes: list[str] = []
         sensitivity_checks: list[str] = []
         model_comparisons: list[str] = []
@@ -4031,7 +3698,7 @@ class ScientificWorkflow:
     def _derive_autonomy_summary(
         *,
         topic: str,
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
         stage_validation: dict[str, Any],
     ) -> dict[str, Any]:
         planner = next((step for step in steps if step.profile_name == "research_planner"), None)
@@ -4089,7 +3756,7 @@ class ScientificWorkflow:
     def _derive_research_plan_summary(
         *,
         topic: str,
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
         stage_validation: dict[str, Any],
     ) -> dict[str, Any]:
         planner = next((step for step in steps if step.profile_name == "research_planner"), None)
@@ -4141,10 +3808,10 @@ class ScientificWorkflow:
     @staticmethod
     def _derive_causal_graph_summary(
         *,
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
         claim_graph: dict[str, Any],
     ) -> dict[str, Any]:
-        reasoning = ScientificWorkflow._derive_causal_reasoning(steps)
+        reasoning = ResearchDirector._derive_causal_reasoning(steps)
         causal_model_payloads = [
             step.parsed_output.get("causal_model", {})
             for step in steps
@@ -4296,7 +3963,7 @@ class ScientificWorkflow:
     def _derive_discipline_adaptation_summary(
         *,
         topic: str,
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
         claim_graph: dict[str, Any],
     ) -> dict[str, Any]:
         payloads: list[dict[str, Any]] = []
@@ -4418,7 +4085,7 @@ class ScientificWorkflow:
         }
 
     @staticmethod
-    def _derive_consensus_state(steps: list[WorkflowStepResult]) -> dict[str, Any]:
+    def _derive_consensus_state(steps: list[ResearchDirectorStepResult]) -> dict[str, Any]:
         summary = {
             "consensus_status": "partial",
             "agreed_points": [],
@@ -4960,7 +4627,7 @@ class ScientificWorkflow:
     def _derive_program_management_summary(
         *,
         topic: str,
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
         research_plan_summary: dict[str, Any],
         autonomy_summary: dict[str, Any],
         route_temperature_summary: dict[str, Any],
@@ -5014,7 +4681,7 @@ class ScientificWorkflow:
     def _derive_domain_playbook_summary(
         *,
         topic: str,
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
         discipline_adaptation_summary: dict[str, Any],
     ) -> dict[str, Any]:
         planner_payload = next(
@@ -5068,7 +4735,7 @@ class ScientificWorkflow:
     @staticmethod
     def _derive_hypothesis_validation_summary(
         *,
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
         claim_graph: dict[str, Any],
     ) -> dict[str, Any]:
         payload = next(
@@ -5083,7 +4750,7 @@ class ScientificWorkflow:
         )
         validations = [item for item in payload if isinstance(item, dict)]
         if not validations:
-            validations = ScientificWorkflow._infer_hypothesis_validations(claim_graph)
+            validations = ResearchDirector._infer_hypothesis_validations(claim_graph)
         if not validations:
             return {}
         def _avg(field: str) -> float:
@@ -5227,7 +4894,7 @@ class ScientificWorkflow:
     @staticmethod
     def _derive_hypothesis_gate_summary(
         *,
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
         hypothesis_validation_summary: dict[str, Any],
     ) -> dict[str, Any]:
         payload = next(
@@ -5242,7 +4909,7 @@ class ScientificWorkflow:
         )
         gate_items = [item for item in payload if isinstance(item, dict)]
         if not gate_items:
-            gate_items = ScientificWorkflow._infer_hypothesis_gates(hypothesis_validation_summary)
+            gate_items = ResearchDirector._infer_hypothesis_gates(hypothesis_validation_summary)
         gate_counts: dict[str, int] = {}
         blocked: list[str] = []
         revise: list[str] = []
@@ -5313,7 +4980,7 @@ class ScientificWorkflow:
     @staticmethod
     def _derive_mechanism_family_lifecycle_summary(
         *,
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
         mechanism_reasoning_summary: dict[str, Any],
     ) -> dict[str, Any]:
         mechanism_items: list[dict[str, Any]] = []
@@ -5675,7 +5342,7 @@ class ScientificWorkflow:
     @staticmethod
     def _derive_mechanism_reasoning_summary(
         *,
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
         causal_graph_summary: dict[str, Any],
     ) -> dict[str, Any]:
         mechanism_map_items: list[dict[str, Any]] = []
@@ -5731,7 +5398,7 @@ class ScientificWorkflow:
     @staticmethod
     def _derive_hypothesis_family_lifecycle_summary(
         *,
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
         theoretical_hypothesis_tree_summary: dict[str, Any],
     ) -> dict[str, Any]:
         family_actions: list[dict[str, Any]] = []
@@ -5818,66 +5485,19 @@ class ScientificWorkflow:
         failure_intelligence_summary: dict[str, Any],
         evaluation_history_summary: dict[str, Any],
     ) -> dict[str, Any]:
-        consulted_profiles = (
-            typed_research_graph_history.get("consulted_profiles", {})
-            if isinstance(typed_research_graph_history.get("consulted_profiles", {}), dict)
-            else {}
+        return derive_graph_learning_summary(
+            typed_research_graph_history=typed_research_graph_history,
+            graph_reference_summary=graph_reference_summary,
+            failure_intelligence_summary=failure_intelligence_summary,
+            evaluation_history_summary=evaluation_history_summary,
         )
-        by_profile = (
-            graph_reference_summary.get("by_profile", [])
-            if isinstance(graph_reference_summary.get("by_profile", []), list)
-            else []
-        )
-        high_value_profiles = [
-            str(item.get("profile_name", "")).strip()
-            for item in by_profile
-            if isinstance(item, dict)
-            and (len(item.get("node_refs", [])) + len(item.get("edge_refs", []))) >= 2
-            and str(item.get("profile_name", "")).strip()
-        ]
-        dominant_failure = str(failure_intelligence_summary.get("dominant_failure_class", "mixed")).strip() or "mixed"
-        regression_count = int(evaluation_history_summary.get("regressing_count", 0) or 0)
-        learning_signal_strength = "low"
-        if consulted_profiles or regression_count >= 2 or high_value_profiles:
-            learning_signal_strength = "medium"
-        if len(consulted_profiles) >= 2 and regression_count >= 2:
-            learning_signal_strength = "high"
-        return {
-            "learning_signal_strength": learning_signal_strength,
-            "dominant_failure_class": dominant_failure,
-            "high_value_profiles": list(dict.fromkeys(high_value_profiles))[:8],
-            "consulted_profiles": consulted_profiles,
-            "regression_count": regression_count,
-            "recommended_learning_focus": (
-                "avoid repeated technical routes"
-                if dominant_failure == "technical"
-                else "re-examine theory families"
-                if dominant_failure == "theoretical"
-                else "close evidence gaps"
-            ),
-        }
 
     @staticmethod
     def _summarize_asset_registry(
         registry_items: list[dict[str, Any]],
         run_manifest: dict[str, Any],
     ) -> dict[str, Any]:
-        asset_types: dict[str, int] = {}
-        for item in registry_items:
-            if not isinstance(item, dict):
-                continue
-            asset_type = str(item.get("asset_type", "unknown")).strip() or "unknown"
-            asset_types[asset_type] = asset_types.get(asset_type, 0) + 1
-        for item in run_manifest.get("artifacts", []):
-            if not isinstance(item, dict):
-                continue
-            asset_type = str(item.get("scope", "artifact")).strip() or "artifact"
-            asset_types[asset_type] = asset_types.get(asset_type, 0) + 1
-        return {
-            "asset_count": len(registry_items) + len(run_manifest.get("artifacts", [])),
-            "asset_types": asset_types,
-            "registered_assets": registry_items[:20],
-        }
+        return summarize_asset_registry(registry_items, run_manifest)
 
     @staticmethod
     def _derive_asset_graph_summary(
@@ -5928,7 +5548,7 @@ class ScientificWorkflow:
         for artifact in run_manifest.get("artifacts", []) if isinstance(run_manifest.get("artifacts", []), list) else []:
             if not isinstance(artifact, dict):
                 continue
-            artifact_type = ScientificWorkflow._artifact_node_type(
+            artifact_type = ResearchDirector._artifact_node_type(
                 kind=str(artifact.get("kind", "")).strip(),
                 path=str(artifact.get("path", "")).strip(),
                 scope=str(artifact.get("scope", "")).strip(),
@@ -5995,7 +5615,7 @@ class ScientificWorkflow:
         self,
         *,
         topic: str,
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
         claim_graph: dict[str, Any],
         research_state: dict[str, Any],
         run_manifest: dict[str, Any],
@@ -7272,7 +6892,7 @@ class ScientificWorkflow:
     def _derive_project_distill(
         *,
         topic: str,
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
         literature_synthesis: dict[str, Any],
         causal_reasoning: dict[str, Any],
         analysis_rigor: dict[str, Any],
@@ -7336,45 +6956,11 @@ class ScientificWorkflow:
         quality_control_reviews: list[dict[str, Any]],
         interpretation_records: list[dict[str, Any]],
     ) -> dict[str, Any]:
-        run_status_counts: dict[str, int] = {}
-        quality_status_counts: dict[str, int] = {}
-        repeat_required_count = 0
-        unusable_count = 0
-        negative_interpretation_count = 0
-        next_decisions: list[str] = []
-
-        for item in experiment_runs:
-            status = str(item.get("status", "")).strip() or "unknown"
-            run_status_counts[status] = run_status_counts.get(status, 0) + 1
-        for item in quality_control_reviews:
-            status = str(item.get("quality_control_status", "")).strip() or "unknown"
-            quality_status_counts[status] = quality_status_counts.get(status, 0) + 1
-            if bool(item.get("repeat_required", False)):
-                repeat_required_count += 1
-            if not bool(item.get("usable_for_interpretation", True)):
-                unusable_count += 1
-        for item in interpretation_records:
-            if bool(item.get("negative_result", False)):
-                negative_interpretation_count += 1
-            decision = str(item.get("next_decision", "")).strip()
-            if decision:
-                next_decisions.append(decision)
-
-        return {
-            "experiment_run_count": len(experiment_runs),
-            "quality_control_review_count": len(quality_control_reviews),
-            "interpretation_record_count": len(interpretation_records),
-            "run_status_counts": run_status_counts,
-            "quality_control_status_counts": quality_status_counts,
-            "quality_control_failed_count": int(quality_status_counts.get("failed", 0)),
-            "quality_control_warning_count": int(quality_status_counts.get("warning", 0)),
-            "quality_control_passed_count": int(quality_status_counts.get("passed", 0)),
-            "repeat_required_count": repeat_required_count,
-            "non_interpretable_review_count": unusable_count,
-            "unusable_for_interpretation_count": unusable_count,
-            "negative_interpretation_count": negative_interpretation_count,
-            "next_decisions": list(dict.fromkeys(next_decisions))[:8],
-        }
+        return derive_execution_cycle_summary(
+            experiment_runs=experiment_runs,
+            quality_control_reviews=quality_control_reviews,
+            interpretation_records=interpretation_records,
+        )
 
     @staticmethod
     def _derive_experiment_governance_summary(
@@ -7384,196 +6970,49 @@ class ScientificWorkflow:
         interpretation_records: list[dict[str, Any]],
         claim_graph: dict[str, Any],
     ) -> dict[str, Any]:
-        status_counts: dict[str, int] = {}
-        quarantine_runs: list[str] = []
-        rerun_candidates: list[str] = []
-        approval_gate_needed = False
-        for item in experiment_runs:
-            status = str(item.get("status", "")).strip().lower() or "unknown"
-            status_counts[status] = status_counts.get(status, 0) + 1
-            run_id = str(item.get("run_id", "")).strip()
-            if status in {"planned", "approved"}:
-                approval_gate_needed = True
-            if status in {"quality_control_failed", "qc_failed"} and run_id:
-                quarantine_runs.append(run_id)
-        for item in quality_control_reviews:
-            run_id = str(item.get("run_id", "")).strip()
-            review_status = str(item.get("quality_control_status", "")).strip().lower()
-            if bool(item.get("repeat_required", False)) and run_id:
-                rerun_candidates.append(run_id)
-            if review_status == "failed" and run_id:
-                quarantine_runs.append(run_id)
-        protocol_assets = [
-            item
-            for item in (
-                claim_graph.get("asset_registry", [])
-                if isinstance(claim_graph.get("asset_registry", []), list)
-                else []
-            )
-            if isinstance(item, dict) and str(item.get("asset_type", "")).strip() == "experimental_protocol"
-        ]
-        interpreted_run_ids = {
-            str(item.get("run_id", "")).strip()
-            for item in interpretation_records
-            if isinstance(item, dict) and str(item.get("run_id", "")).strip()
-        }
-        governance_risks: list[str] = []
-        if approval_gate_needed:
-            governance_risks.append("there are planned or approved runs that have not yet cleared execution governance")
-        if quarantine_runs:
-            governance_risks.append("some runs should be quarantined because quality control failed")
-        if len(protocol_assets) > len({str(item.get("experiment_id", "")).strip() for item in experiment_runs if isinstance(item, dict)}):
-            governance_risks.append("protocol lineage may be diverging from run lineage")
-        return {
-            "run_status_counts": status_counts,
-            "approval_gate_needed": approval_gate_needed,
-            "quarantine_runs": list(dict.fromkeys(quarantine_runs))[:10],
-            "rerun_candidates": list(dict.fromkeys(rerun_candidates))[:10],
-            "interpreted_run_count": len(interpreted_run_ids),
-            "protocol_record_count": len(protocol_assets),
-            "governance_risks": governance_risks[:8],
-        }
+        return derive_experiment_governance_summary(
+            experiment_runs=experiment_runs,
+            quality_control_reviews=quality_control_reviews,
+            interpretation_records=interpretation_records,
+            claim_graph=claim_graph,
+        )
 
     @staticmethod
     def _derive_failure_intelligence_summary(
         *,
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
         claim_graph: dict[str, Any],
         execution_cycle_summary: dict[str, Any],
     ) -> dict[str, Any]:
-        technical_failures: list[str] = []
-        theoretical_failures: list[str] = []
-        evidence_failures: list[str] = []
-        avoid_repeat_routes: list[str] = []
-        for step in steps:
-            parsed = step.parsed_output
-            for item in parsed.get("negative_results", []) if isinstance(parsed.get("negative_results", []), list) else []:
-                if not isinstance(item, dict):
-                    continue
-                result = str(item.get("result", "")).strip()
-                why = str(item.get("why_it_failed_or_did_not_support", "")).strip().lower()
-                implication = str(item.get("implication", "")).strip().lower()
-                if any(token in why for token in ["instrument", "calibration", "noise", "quality", "protocol", "execution", "data leakage"]):
-                    technical_failures.append(result or why)
-                elif any(token in implication for token in ["hypothesis", "mechanism", "theory", "assumption", "causal"]):
-                    theoretical_failures.append(result or implication)
-                else:
-                    evidence_failures.append(result or implication or why)
-                for hypothesis_id in (
-                    item.get("affected_hypothesis_ids", [])
-                    if isinstance(item.get("affected_hypothesis_ids", []), list)
-                    else []
-                ):
-                    if str(hypothesis_id).strip():
-                        avoid_repeat_routes.append(str(hypothesis_id).strip())
-        for item in claim_graph.get("hypotheses", []) if isinstance(claim_graph.get("hypotheses", []), list) else []:
-            if not isinstance(item, dict):
-                continue
-            if str(item.get("status", "")).strip().lower() in {"deprecated", "rejected"}:
-                hypothesis_id = str(item.get("global_hypothesis_id", "")).strip()
-                if hypothesis_id:
-                    avoid_repeat_routes.append(hypothesis_id)
-        dominant_failure_class = "mixed"
-        if len(technical_failures) > max(len(theoretical_failures), len(evidence_failures)):
-            dominant_failure_class = "technical"
-        elif len(theoretical_failures) > max(len(technical_failures), len(evidence_failures)):
-            dominant_failure_class = "theoretical"
-        elif len(evidence_failures) > max(len(technical_failures), len(theoretical_failures)):
-            dominant_failure_class = "evidentiary"
-        return {
-            "technical_failures": list(dict.fromkeys(technical_failures))[:8],
-            "theoretical_failures": list(dict.fromkeys(theoretical_failures))[:8],
-            "evidence_failures": list(dict.fromkeys(evidence_failures))[:8],
-            "avoid_repeat_routes": list(dict.fromkeys(avoid_repeat_routes))[:10],
-            "dominant_failure_class": dominant_failure_class,
-            "negative_interpretation_count": int(
-                execution_cycle_summary.get("negative_interpretation_count", 0) or 0
-            ),
-        }
+        return derive_failure_intelligence_summary(
+            steps=steps,
+            claim_graph=claim_graph,
+            execution_cycle_summary=execution_cycle_summary,
+        )
 
     @staticmethod
     def _derive_experiment_economics_summary(
         *,
         topic: str,
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
         research_plan_summary: dict[str, Any],
         discipline_adaptation_summary: dict[str, Any],
         execution_cycle_summary: dict[str, Any],
         failure_intelligence_summary: dict[str, Any],
     ) -> dict[str, Any]:
-        specialist_payload = next(
-            (
-                step.parsed_output.get("experiment_economics", {})
-                for step in steps
-                if step.profile_name == "experiment_economist"
-                and isinstance(step.parsed_output.get("experiment_economics", {}), dict)
-                and step.parsed_output.get("experiment_economics", {})
-            ),
-            {},
+        return derive_experiment_economics_summary(
+            topic=topic,
+            steps=steps,
+            research_plan_summary=research_plan_summary,
+            discipline_adaptation_summary=discipline_adaptation_summary,
+            execution_cycle_summary=execution_cycle_summary,
+            failure_intelligence_summary=failure_intelligence_summary,
         )
-        primary_discipline = str(
-            discipline_adaptation_summary.get("primary_discipline", "general_science")
-        ).strip()
-        next_cycle_count = len(research_plan_summary.get("next_cycle_experiments", []))
-        repeat_count = int(execution_cycle_summary.get("repeat_required_count", 0) or 0)
-        failed_quality = int(execution_cycle_summary.get("quality_control_failed_count", 0) or 0)
-        cost_pressure = "medium"
-        time_pressure = "medium"
-        if primary_discipline in {"chemistry", "chemical_engineering", "physics"} or repeat_count >= 2:
-            cost_pressure = "high"
-        if primary_discipline == "artificial_intelligence" and "benchmark" in topic.lower():
-            cost_pressure = "medium"
-        if next_cycle_count >= 3 or failed_quality >= 2:
-            time_pressure = "high"
-        cheapest_actions = list(
-            dict.fromkeys(
-                research_plan_summary.get("decision_gates", [])[:2]
-                + research_plan_summary.get("information_gain_priorities", [])[:3]
-            )
-        )[:5]
-        if not cheapest_actions:
-            cheapest_actions = ["run the smallest discriminative next-step experiment first"]
-        return {
-            "primary_discipline": primary_discipline,
-            "cost_pressure": str(specialist_payload.get("cost_pressure", "")).strip() or cost_pressure,
-            "time_pressure": str(specialist_payload.get("time_pressure", "")).strip() or time_pressure,
-            "repeat_burden": repeat_count,
-            "quality_failure_burden": failed_quality,
-            "information_gain_pressure": (
-                str(specialist_payload.get("information_gain_pressure", "")).strip()
-                or (
-                "high" if next_cycle_count or failure_intelligence_summary.get("avoid_repeat_routes") else "medium"
-                )
-            ),
-            "cheapest_discriminative_actions": (
-                [
-                    str(item)
-                    for item in specialist_payload.get("cheapest_discriminative_actions", [])
-                    if str(item).strip()
-                ]
-                or cheapest_actions
-            )[:6],
-            "resource_risks": [
-                str(item)
-                for item in specialist_payload.get("resource_risks", [])
-                if str(item).strip()
-            ][:6],
-            "defer_candidates": [
-                str(item)
-                for item in specialist_payload.get("defer_candidates", [])
-                if str(item).strip()
-            ][:6],
-            "expected_information_gain": [
-                str(item)
-                for item in specialist_payload.get("expected_information_gain", [])
-                if str(item).strip()
-            ][:6],
-        }
 
     @staticmethod
     def _derive_lab_meeting_consensus_summary(
         *,
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
         consensus_state: dict[str, Any],
         consensus_state_machine: dict[str, Any],
         failure_intelligence_summary: dict[str, Any],
@@ -7664,7 +7103,7 @@ class ScientificWorkflow:
         self,
         *,
         topic: str,
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
         lab_meeting_consensus_summary: dict[str, Any],
     ) -> dict[str, Any]:
         project_id = str(self.collaboration_context.get("project_id", "")).strip()
@@ -7765,7 +7204,7 @@ class ScientificWorkflow:
     def _extract_current_agent_stance_records(
         self,
         *,
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
         lab_meeting_consensus_summary: dict[str, Any],
     ) -> list[dict[str, Any]]:
         meeting_positions = {
@@ -7872,10 +7311,10 @@ class ScientificWorkflow:
     @staticmethod
     def _extract_agent_stance_evidence_refs(parsed: dict[str, Any], consensus: dict[str, Any]) -> list[str]:
         refs: list[str] = []
-        refs.extend(ScientificWorkflow._strings(consensus.get("evidence_refs", [])))
+        refs.extend(ResearchDirector._strings(consensus.get("evidence_refs", [])))
         graph_refs = parsed.get("graph_references", {}) if isinstance(parsed.get("graph_references", {}), dict) else {}
-        refs.extend(ScientificWorkflow._strings(graph_refs.get("node_refs", [])))
-        refs.extend(ScientificWorkflow._strings(graph_refs.get("edge_refs", [])))
+        refs.extend(ResearchDirector._strings(graph_refs.get("node_refs", [])))
+        refs.extend(ResearchDirector._strings(graph_refs.get("edge_refs", [])))
         for evidence in parsed.get("evidence", []) if isinstance(parsed.get("evidence", []), list) else []:
             if isinstance(evidence, dict):
                 refs.append(
@@ -7952,7 +7391,7 @@ class ScientificWorkflow:
 
     @staticmethod
     def _slugify(value: str) -> str:
-        return ScientificWorkflow._slugify_text(value)
+        return ResearchDirector._slugify_text(value)
 
     @staticmethod
     def _effect_direction(text: str) -> str:
@@ -7983,7 +7422,7 @@ class ScientificWorkflow:
         text = " ".join(
             [
                 str(evidence_record.get("method", "")),
-                " ".join(ScientificWorkflow._strings(evidence_record.get("limitations", []))),
+                " ".join(ResearchDirector._strings(evidence_record.get("limitations", []))),
             ]
         ).lower()
         if any(term in text for term in ["low", "randomized", "controlled", "replicate", "pre-registered"]):
@@ -8000,7 +7439,7 @@ class ScientificWorkflow:
             [
                 str(evidence_record.get("method", "")),
                 str(evidence_record.get("sample_or_scope", "")),
-                " ".join(ScientificWorkflow._strings(evidence_record.get("limitations", []))),
+                " ".join(ResearchDirector._strings(evidence_record.get("limitations", []))),
             ]
         ).lower()
         domains: list[str] = []
@@ -8071,9 +7510,9 @@ class ScientificWorkflow:
         theory_objects = hypothesis_theory_summary.get("objects", [])
         theory_objects = theory_objects if isinstance(theory_objects, list) else []
         hypothesis_count = int(hypothesis_tree_summary.get("hypothesis_count", 0) or 0)
-        accepted = ScientificWorkflow._strings(hypothesis_gate_summary.get("accepted_hypotheses", []))
-        revise = ScientificWorkflow._strings(hypothesis_gate_summary.get("revise_hypotheses", []))
-        blocked = ScientificWorkflow._strings(hypothesis_gate_summary.get("blocked_hypotheses", []))
+        accepted = ResearchDirector._strings(hypothesis_gate_summary.get("accepted_hypotheses", []))
+        revise = ResearchDirector._strings(hypothesis_gate_summary.get("revise_hypotheses", []))
+        blocked = ResearchDirector._strings(hypothesis_gate_summary.get("blocked_hypotheses", []))
         prediction_count = int(theory_prediction_compiler_summary.get("prediction_count", 0) or 0)
         discriminating_count = int(theory_prediction_compiler_summary.get("discriminating_test_count", 0) or 0)
         gate_state = str(hypothesis_gate_summary.get("gate_state", "not_evaluated")).strip()
@@ -8087,7 +7526,7 @@ class ScientificWorkflow:
         if gate_state in {"blocked", "revision_required"}:
             maturity = "needs_revision"
         return {
-            "hypothesis_system_id": f"hypothesis-system::{ScientificWorkflow._slugify(topic)}",
+            "hypothesis_system_id": f"hypothesis-system::{ResearchDirector._slugify(topic)}",
             "topic": topic,
             "system_state": maturity,
             "hypothesis_count": hypothesis_count,
@@ -8111,8 +7550,8 @@ class ScientificWorkflow:
             },
             "blocking_reasons": (
                 blocked
-                + ScientificWorkflow._strings(hypothesis_gate_summary.get("gate_blockers", []))
-                + ScientificWorkflow._strings(theory_prediction_compiler_summary.get("formalization_gaps", []))
+                + ResearchDirector._strings(hypothesis_gate_summary.get("gate_blockers", []))
+                + ResearchDirector._strings(theory_prediction_compiler_summary.get("formalization_gaps", []))
             )[:12],
         }
 
@@ -8130,16 +7569,16 @@ class ScientificWorkflow:
             if isinstance(benchmark_case_suite_summary.get("scientific_evaluation_benchmark_summary", {}), dict)
             else {}
         )
-        blocking_gates = ScientificWorkflow._strings(
+        blocking_gates = ResearchDirector._strings(
             kaivu_evaluation_harness_summary.get("blocking_gates", [])
         )
-        benchmark_gaps = ScientificWorkflow._strings(benchmark_case_suite_summary.get("benchmark_gaps", []))
-        harness_gaps = ScientificWorkflow._strings(benchmark_harness_summary.get("benchmark_gaps", []))
+        benchmark_gaps = ResearchDirector._strings(benchmark_case_suite_summary.get("benchmark_gaps", []))
+        harness_gaps = ResearchDirector._strings(benchmark_harness_summary.get("benchmark_gaps", []))
         release_state = str(kaivu_evaluation_harness_summary.get("release_state", "")).strip()
         if not release_state:
             release_state = str(benchmark_harness_summary.get("release_readiness", "low")).strip()
         return {
-            "scientific_evaluation_system_id": f"scientific-evaluation-system::{ScientificWorkflow._slugify(topic)}",
+            "scientific_evaluation_system_id": f"scientific-evaluation-system::{ResearchDirector._slugify(topic)}",
             "topic": topic,
             "system_state": release_state,
             "case_suite_state": str(benchmark_case_suite_summary.get("benchmark_readiness", "")).strip(),
@@ -8184,8 +7623,8 @@ class ScientificWorkflow:
             else []
         )
         review_ready = str(evidence_review_summary.get("review_readiness", "")).strip()
-        protocol_gaps = ScientificWorkflow._strings(systematic_review_summary.get("review_protocol_gaps", []))
-        missing_prereqs = ScientificWorkflow._strings(stage_validation.get("missing_prerequisites", []))
+        protocol_gaps = ResearchDirector._strings(systematic_review_summary.get("review_protocol_gaps", []))
+        missing_prereqs = ResearchDirector._strings(stage_validation.get("missing_prerequisites", []))
         blockers: list[str] = []
         if claim_count == 0 and evidence_count == 0:
             blockers.append("no claim or evidence objects available")
@@ -8220,7 +7659,7 @@ class ScientificWorkflow:
         else:
             allowed_next_actions = ["schedule_ready_experiment", "run_quality_gate", "prepare_handoff"]
         return {
-            "workflow_control_id": f"workflow-control::{ScientificWorkflow._slugify(topic)}",
+            "workflow_control_id": f"workflow-control::{ResearchDirector._slugify(topic)}",
             "topic": topic,
             "current_stage": current_stage,
             "recommended_next_stage": recommended_next_stage,
@@ -8373,170 +7812,38 @@ class ScientificWorkflow:
         }
 
     @staticmethod
-    def _derive_graph_reference_summary(steps: list[WorkflowStepResult]) -> dict[str, Any]:
-        node_refs: set[str] = set()
-        edge_refs: set[str] = set()
-        by_profile: list[dict[str, Any]] = []
-        for step in steps:
-            payload = step.parsed_output.get("graph_references", {})
-            if not isinstance(payload, dict) or not payload:
-                continue
-            profile_nodes = [
-                str(item).strip()
-                for item in payload.get("node_refs", [])
-                if str(item).strip()
-            ] if isinstance(payload.get("node_refs", []), list) else []
-            profile_edges = [
-                str(item).strip()
-                for item in payload.get("edge_refs", [])
-                if str(item).strip()
-            ] if isinstance(payload.get("edge_refs", []), list) else []
-            node_refs.update(profile_nodes)
-            edge_refs.update(profile_edges)
-            by_profile.append(
-                {
-                    "profile_name": step.profile_name,
-                    "node_refs": profile_nodes,
-                    "edge_refs": profile_edges,
-                    "usage_note": str(payload.get("usage_note", "")).strip(),
-                }
-            )
-        return {
-            "node_ref_count": len(node_refs),
-            "edge_ref_count": len(edge_refs),
-            "node_refs": sorted(node_refs),
-            "edge_refs": sorted(edge_refs),
-            "by_profile": by_profile,
-        }
+    def _derive_graph_reference_summary(steps: list[ResearchDirectorStepResult]) -> dict[str, Any]:
+        return derive_graph_reference_summary(steps)
 
     @staticmethod
     def _derive_belief_update_summary(
         *,
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
         claim_graph: dict[str, Any],
     ) -> dict[str, Any]:
-        belief_step = next((step for step in steps if step.profile_name == "belief_updater"), None)
-        if belief_step is None:
-            return {}
-        parsed = belief_step.parsed_output if isinstance(belief_step.parsed_output, dict) else {}
-        consensus = parsed.get("consensus_summary", {}) if isinstance(parsed.get("consensus_summary", {}), dict) else {}
-        project_distill = parsed.get("project_distill", {}) if isinstance(parsed.get("project_distill", {}), dict) else {}
-        registry_updates = (
-            parsed.get("asset_registry_updates", [])
-            if isinstance(parsed.get("asset_registry_updates", []), list)
-            else []
-        )
-        hypotheses = claim_graph.get("hypotheses", [])
-        hypothesis_relations = claim_graph.get("hypothesis_relations", [])
-        status_counts: dict[str, int] = {}
-        challenged_count = 0
-        for item in hypotheses if isinstance(hypotheses, list) else []:
-            if not isinstance(item, dict):
-                continue
-            status = str(item.get("status", "active")).strip().lower() or "active"
-            status_counts[status] = status_counts.get(status, 0) + 1
-            if int(item.get("challenge_count", 0) or 0) > 0:
-                challenged_count += 1
-        relation_counts: dict[str, int] = {}
-        for item in hypothesis_relations if isinstance(hypothesis_relations, list) else []:
-            if not isinstance(item, dict):
-                continue
-            relation = str(item.get("relation", "related_to")).strip().lower() or "related_to"
-            relation_counts[relation] = relation_counts.get(relation, 0) + 1
-        return {
-            "consensus_status": str(consensus.get("consensus_status", "")).strip() or "partial",
-            "agreed_points": consensus.get("agreed_points", []) if isinstance(consensus.get("agreed_points", []), list) else [],
-            "unresolved_points": (
-                consensus.get("unresolved_points", [])
-                if isinstance(consensus.get("unresolved_points", []), list)
-                else []
-            ),
-            "adjudication_basis": (
-                consensus.get("adjudication_basis", [])
-                if isinstance(consensus.get("adjudication_basis", []), list)
-                else []
-            ),
-            "current_consensus": str(project_distill.get("current_consensus", "")).strip(),
-            "next_cycle_goals": (
-                project_distill.get("next_cycle_goals", [])
-                if isinstance(project_distill.get("next_cycle_goals", []), list)
-                else []
-            ),
-            "failed_routes": (
-                project_distill.get("failed_routes", [])
-                if isinstance(project_distill.get("failed_routes", []), list)
-                else []
-            ),
-            "registry_update_count": len([item for item in registry_updates if isinstance(item, dict)]),
-            "status_counts": status_counts,
-            "challenged_hypothesis_count": challenged_count,
-            "hypothesis_relation_counts": relation_counts,
-        }
+        return derive_belief_update_summary(steps=steps, claim_graph=claim_graph)
 
     def _derive_run_manifest(
         self,
         *,
         topic: str,
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
         execution_records: list[dict[str, Any]],
         usage_summary: dict[str, Any],
     ) -> dict[str, Any]:
-        input_files: dict[str, dict[str, Any]] = {}
-        artifacts: dict[str, dict[str, Any]] = {}
-        seeds: list[int] = []
-        tools_used: list[str] = []
-        models_used: list[dict[str, Any]] = []
-
-        for step in steps:
-            models_used.append(
-                {
-                    "profile_name": step.profile_name,
-                    **step.model_meta,
-                }
-            )
-
-        for record in execution_records:
-            tool_name = str(record.get("tool_name", "")).strip()
-            if tool_name:
-                tools_used.append(tool_name)
-            inputs = record.get("inputs", {})
-            if isinstance(inputs, dict):
-                seed = inputs.get("seed")
-                if isinstance(seed, int):
-                    seeds.append(seed)
-                for item in inputs.get("file_inputs", []):
-                    if isinstance(item, dict) and item.get("path"):
-                        input_files[str(item["path"])] = item
-            for item in record.get("artifacts", []):
-                if isinstance(item, dict) and item.get("path"):
-                    artifacts[str(item["path"])] = item
-
-        report_artifact = {
-            "path": str(self.report_path),
-            "kind": "report",
-            "exists": False,
-            "scope": "artifact",
-        }
-        artifacts[str(self.report_path)] = report_artifact
-
-        return {
-            "generated_at": datetime.now(timezone.utc).isoformat(),
-            "topic": topic,
-            "cwd": str(self.cwd),
-            "python_version": sys.version.split()[0],
-            "platform": platform.platform(),
-            "collaboration_context": self.collaboration_context,
-            "tools_used": sorted(set(tools_used)),
-            "models_used": models_used,
-            "input_files": list(input_files.values()),
-            "artifacts": list(artifacts.values()),
-            "seeds": sorted(set(seeds)),
-            "usage_summary": usage_summary,
-        }
+        return build_run_manifest(
+            topic=topic,
+            steps=steps,
+            execution_records=execution_records,
+            usage_summary=usage_summary,
+            report_path=self.report_path,
+            cwd=self.cwd,
+            collaboration_context=self.collaboration_context,
+        )
 
     @staticmethod
     def _extract_routing_object_state(
-        completed_steps: list[WorkflowStepResult],
+        completed_steps: list[ResearchDirectorStepResult],
     ) -> dict[str, Any]:
         planner = next((step for step in completed_steps if step.profile_name == "research_planner"), None)
         literature = next((step for step in completed_steps if step.profile_name == "literature_reviewer"), None)
@@ -8612,10 +7919,10 @@ class ScientificWorkflow:
                 ),
                 {},
             ),
-            "failure_intelligence": ScientificWorkflow._derive_failure_intelligence_summary(
+            "failure_intelligence": ResearchDirector._derive_failure_intelligence_summary(
                 steps=completed_steps,
-                claim_graph=ScientificWorkflow._build_claim_graph(completed_steps),
-                execution_cycle_summary=ScientificWorkflow._derive_execution_cycle_summary(
+                claim_graph=ResearchDirector._build_claim_graph(completed_steps),
+                execution_cycle_summary=ResearchDirector._derive_execution_cycle_summary(
                     experiment_runs=[
                         step.parsed_output.get("experiment_run", {})
                         for step in completed_steps
@@ -8636,16 +7943,16 @@ class ScientificWorkflow:
                     ],
                 ),
             ),
-            "graph_reference_summary": ScientificWorkflow._derive_graph_reference_summary(completed_steps),
+            "graph_reference_summary": ResearchDirector._derive_graph_reference_summary(completed_steps),
             "typed_research_graph_history": {},
         }
 
     @staticmethod
     def _derive_routing_termination_strategy(
-        completed_steps: list[WorkflowStepResult],
+        completed_steps: list[ResearchDirectorStepResult],
     ) -> dict[str, Any]:
-        object_state = ScientificWorkflow._extract_routing_object_state(completed_steps)
-        temporary_claim_graph = ScientificWorkflow._build_claim_graph(completed_steps)
+        object_state = ResearchDirector._extract_routing_object_state(completed_steps)
+        temporary_claim_graph = ResearchDirector._build_claim_graph(completed_steps)
         negative_results: list[dict[str, Any]] = []
         experiment_runs: list[dict[str, Any]] = []
         quality_control_reviews: list[dict[str, Any]] = []
@@ -8671,33 +7978,33 @@ class ScientificWorkflow:
                     if conflict_group:
                         conflict_groups.setdefault(conflict_group, []).append(evidence)
 
-        stage_validation = ScientificWorkflow._validate_stage_progression(completed_steps)
-        consensus_state = ScientificWorkflow._derive_consensus_state(completed_steps)
-        conflict_summary = ScientificWorkflow._summarize_conflict_groups(conflict_groups)
-        consensus_state_machine = ScientificWorkflow._derive_consensus_state_machine(
+        stage_validation = ResearchDirector._validate_stage_progression(completed_steps)
+        consensus_state = ResearchDirector._derive_consensus_state(completed_steps)
+        conflict_summary = ResearchDirector._summarize_conflict_groups(conflict_groups)
+        consensus_state_machine = ResearchDirector._derive_consensus_state_machine(
             consensus_state=consensus_state,
             conflict_summary=conflict_summary,
             stage_validation=stage_validation,
             negative_results=negative_results,
         )
-        execution_cycle_summary = ScientificWorkflow._derive_execution_cycle_summary(
+        execution_cycle_summary = ResearchDirector._derive_execution_cycle_summary(
             experiment_runs=experiment_runs,
             quality_control_reviews=quality_control_reviews,
             interpretation_records=interpretation_records,
         )
-        belief_update_summary = ScientificWorkflow._derive_belief_update_summary(
+        belief_update_summary = ResearchDirector._derive_belief_update_summary(
             steps=completed_steps,
             claim_graph=temporary_claim_graph,
         )
-        return ScientificWorkflow._derive_termination_strategy_summary(
+        return ResearchDirector._derive_termination_strategy_summary(
             topic="routing",
             claim_graph=temporary_claim_graph,
-            research_plan_summary=ScientificWorkflow._derive_research_plan_summary(
+            research_plan_summary=ResearchDirector._derive_research_plan_summary(
                 topic="routing",
                 steps=completed_steps,
                 stage_validation=stage_validation,
             ),
-            autonomy_summary=ScientificWorkflow._derive_autonomy_summary(
+            autonomy_summary=ResearchDirector._derive_autonomy_summary(
                 topic="routing",
                 steps=completed_steps,
                 stage_validation=stage_validation,
@@ -8706,10 +8013,10 @@ class ScientificWorkflow:
             negative_results=negative_results,
             execution_cycle_summary=execution_cycle_summary,
             belief_update_summary=belief_update_summary,
-            experiment_economics_summary=ScientificWorkflow._derive_experiment_economics_summary(
+            experiment_economics_summary=ResearchDirector._derive_experiment_economics_summary(
                 topic="routing",
                 steps=completed_steps,
-                research_plan_summary=ScientificWorkflow._derive_research_plan_summary(
+                research_plan_summary=ResearchDirector._derive_research_plan_summary(
                     topic="routing",
                     steps=completed_steps,
                     stage_validation=stage_validation,
@@ -8718,7 +8025,7 @@ class ScientificWorkflow:
                 execution_cycle_summary=execution_cycle_summary,
                 failure_intelligence_summary=object_state.get("failure_intelligence", {}),
             ),
-            lab_meeting_consensus_summary=ScientificWorkflow._derive_lab_meeting_consensus_summary(
+            lab_meeting_consensus_summary=ResearchDirector._derive_lab_meeting_consensus_summary(
                 steps=completed_steps,
                 consensus_state=consensus_state,
                 consensus_state_machine=consensus_state_machine,
@@ -8729,7 +8036,7 @@ class ScientificWorkflow:
     @staticmethod
     def _heuristic_next_profiles_from_objects(
         *,
-        completed_steps: list[WorkflowStepResult],
+        completed_steps: list[ResearchDirectorStepResult],
         remaining_names: list[str],
         negative_signals: list[str],
         topic: str,
@@ -8737,7 +8044,7 @@ class ScientificWorkflow:
         graph_history_summary: dict[str, Any] | None = None,
     ) -> list[str]:
         completed_names = {step.profile_name for step in completed_steps}
-        object_state = ScientificWorkflow._extract_routing_object_state(completed_steps)
+        object_state = ResearchDirector._extract_routing_object_state(completed_steps)
         research_plan = object_state.get("research_plan", {})
         autonomy_plan = object_state.get("autonomy_plan", {})
         systematic_review = object_state.get("systematic_review", {})
@@ -8759,29 +8066,29 @@ class ScientificWorkflow:
         graph_reference_summary = object_state.get("graph_reference_summary", {})
         evaluation_history = evaluation_history_summary if isinstance(evaluation_history_summary, dict) else {}
         graph_history = graph_history_summary if isinstance(graph_history_summary, dict) else {}
-        theoretical_hypothesis_tree_summary = ScientificWorkflow._derive_theoretical_hypothesis_tree_summary(
-            claim_graph=ScientificWorkflow._build_claim_graph(completed_steps),
-            hypothesis_tree=ScientificWorkflow._derive_hypothesis_tree(
-                ScientificWorkflow._build_claim_graph(completed_steps)
+        theoretical_hypothesis_tree_summary = ResearchDirector._derive_theoretical_hypothesis_tree_summary(
+            claim_graph=ResearchDirector._build_claim_graph(completed_steps),
+            hypothesis_tree=ResearchDirector._derive_hypothesis_tree(
+                ResearchDirector._build_claim_graph(completed_steps)
             ),
             discipline_adaptation_summary=discipline_adaptation,
         )
-        route_temperature_summary = ScientificWorkflow._derive_route_temperature_summary(
-            claim_graph=ScientificWorkflow._build_claim_graph(completed_steps),
+        route_temperature_summary = ResearchDirector._derive_route_temperature_summary(
+            claim_graph=ResearchDirector._build_claim_graph(completed_steps),
             failure_intelligence_summary=failure_intelligence,
             graph_reference_summary=graph_reference_summary,
             typed_research_graph_history=graph_history,
             evaluation_history_summary=evaluation_history,
             theoretical_hypothesis_tree_summary=theoretical_hypothesis_tree_summary,
         )
-        graph_learning_summary = ScientificWorkflow._derive_graph_learning_summary(
+        graph_learning_summary = ResearchDirector._derive_graph_learning_summary(
             typed_research_graph_history=graph_history,
             graph_reference_summary=graph_reference_summary,
             failure_intelligence_summary=failure_intelligence,
             evaluation_history_summary=evaluation_history,
         )
-        temporary_claim_graph = ScientificWorkflow._build_claim_graph(completed_steps)
-        execution_cycle_summary = ScientificWorkflow._derive_execution_cycle_summary(
+        temporary_claim_graph = ResearchDirector._build_claim_graph(completed_steps)
+        execution_cycle_summary = ResearchDirector._derive_execution_cycle_summary(
             experiment_runs=[
                 step.parsed_output.get("experiment_run", {})
                 for step in completed_steps
@@ -8801,13 +8108,13 @@ class ScientificWorkflow:
                 and step.parsed_output.get("interpretation_record", {})
             ],
         )
-        lab_meeting_consensus_summary = ScientificWorkflow._derive_lab_meeting_consensus_summary(
+        lab_meeting_consensus_summary = ResearchDirector._derive_lab_meeting_consensus_summary(
             steps=completed_steps,
-            consensus_state=ScientificWorkflow._derive_consensus_state(completed_steps),
-            consensus_state_machine=ScientificWorkflow._derive_consensus_state_machine(
-                consensus_state=ScientificWorkflow._derive_consensus_state(completed_steps),
-                conflict_summary=ScientificWorkflow._summarize_conflict_groups({}),
-                stage_validation=ScientificWorkflow._validate_stage_progression(completed_steps),
+            consensus_state=ResearchDirector._derive_consensus_state(completed_steps),
+            consensus_state_machine=ResearchDirector._derive_consensus_state_machine(
+                consensus_state=ResearchDirector._derive_consensus_state(completed_steps),
+                conflict_summary=ResearchDirector._summarize_conflict_groups({}),
+                stage_validation=ResearchDirector._validate_stage_progression(completed_steps),
                 negative_results=[
                     item
                     for step in completed_steps
@@ -8821,13 +8128,13 @@ class ScientificWorkflow:
             ),
             failure_intelligence_summary=failure_intelligence,
         )
-        evaluation_summary = ScientificWorkflow._derive_evaluation_summary(
+        evaluation_summary = ResearchDirector._derive_evaluation_summary(
             claim_graph=temporary_claim_graph,
             literature_quality_summary={},
-            consensus_state_machine=ScientificWorkflow._derive_consensus_state_machine(
-                consensus_state=ScientificWorkflow._derive_consensus_state(completed_steps),
-                conflict_summary=ScientificWorkflow._summarize_conflict_groups({}),
-                stage_validation=ScientificWorkflow._validate_stage_progression(completed_steps),
+            consensus_state_machine=ResearchDirector._derive_consensus_state_machine(
+                consensus_state=ResearchDirector._derive_consensus_state(completed_steps),
+                conflict_summary=ResearchDirector._summarize_conflict_groups({}),
+                stage_validation=ResearchDirector._validate_stage_progression(completed_steps),
                 negative_results=[
                     item
                     for step in completed_steps
@@ -8851,15 +8158,15 @@ class ScientificWorkflow:
             route_temperature_summary=route_temperature_summary,
             graph_learning_summary=graph_learning_summary,
         )
-        termination_strategy = ScientificWorkflow._derive_routing_termination_strategy(
+        termination_strategy = ResearchDirector._derive_routing_termination_strategy(
             completed_steps
         )
         human_governance_checkpoint_summary = (
-            ScientificWorkflow._derive_human_governance_checkpoint_summary(
+            ResearchDirector._derive_human_governance_checkpoint_summary(
                 topic="routing",
                 termination_strategy_summary=termination_strategy,
                 lab_meeting_consensus_summary=lab_meeting_consensus_summary,
-                experiment_governance_summary=ScientificWorkflow._derive_experiment_governance_summary(
+                experiment_governance_summary=ResearchDirector._derive_experiment_governance_summary(
                     experiment_runs=[
                         step.parsed_output.get("experiment_run", {})
                         for step in completed_steps
@@ -8881,10 +8188,10 @@ class ScientificWorkflow:
                     claim_graph=temporary_claim_graph,
                 ),
                 experiment_economics_summary=object_state.get("experiment_economics", {}),
-                consensus_state_machine=ScientificWorkflow._derive_consensus_state_machine(
-                    consensus_state=ScientificWorkflow._derive_consensus_state(completed_steps),
-                    conflict_summary=ScientificWorkflow._summarize_conflict_groups({}),
-                    stage_validation=ScientificWorkflow._validate_stage_progression(completed_steps),
+                consensus_state_machine=ResearchDirector._derive_consensus_state_machine(
+                    consensus_state=ResearchDirector._derive_consensus_state(completed_steps),
+                    conflict_summary=ResearchDirector._summarize_conflict_groups({}),
+                    stage_validation=ResearchDirector._validate_stage_progression(completed_steps),
                     negative_results=[
                         item
                         for step in completed_steps
@@ -8899,7 +8206,7 @@ class ScientificWorkflow:
                 evaluation_summary=evaluation_summary,
             )
         )
-        benchmark_harness_summary = ScientificWorkflow._derive_benchmark_harness_summary(
+        benchmark_harness_summary = ResearchDirector._derive_benchmark_harness_summary(
             topic="routing",
             evaluation_summary=evaluation_summary,
             systematic_review_summary=systematic_review,
@@ -8908,22 +8215,22 @@ class ScientificWorkflow:
             graph_reference_summary=graph_reference_summary,
             route_temperature_summary=route_temperature_summary,
             typed_research_graph_history=graph_history,
-            mechanism_reasoning_summary=ScientificWorkflow._derive_mechanism_reasoning_summary(
+            mechanism_reasoning_summary=ResearchDirector._derive_mechanism_reasoning_summary(
                 steps=completed_steps,
                 causal_graph_summary=causal_model,
             ),
-            hypothesis_family_lifecycle_summary=ScientificWorkflow._derive_hypothesis_family_lifecycle_summary(
+            hypothesis_family_lifecycle_summary=ResearchDirector._derive_hypothesis_family_lifecycle_summary(
                 steps=completed_steps,
                 theoretical_hypothesis_tree_summary=theoretical_hypothesis_tree_summary,
             ),
             human_governance_checkpoint_summary=human_governance_checkpoint_summary,
         )
-        research_route_search = ScientificWorkflow._derive_research_route_search_summary(
+        research_route_search = ResearchDirector._derive_research_route_search_summary(
             topic="routing",
             research_plan_summary=research_plan,
             autonomy_summary=autonomy_plan,
             systematic_review_summary=systematic_review,
-            experiment_governance_summary=ScientificWorkflow._derive_experiment_governance_summary(
+            experiment_governance_summary=ResearchDirector._derive_experiment_governance_summary(
                 experiment_runs=[
                     step.parsed_output.get("experiment_run", {})
                     for step in completed_steps
@@ -8950,7 +8257,7 @@ class ScientificWorkflow:
             evaluation_summary=evaluation_summary,
             human_governance_checkpoint_summary=human_governance_checkpoint_summary,
             benchmark_harness_summary=benchmark_harness_summary,
-            hypothesis_validation_summary=ScientificWorkflow._derive_hypothesis_validation_summary(
+            hypothesis_validation_summary=ResearchDirector._derive_hypothesis_validation_summary(
                 steps=completed_steps,
                 claim_graph=temporary_claim_graph,
             ),
@@ -8964,17 +8271,17 @@ class ScientificWorkflow:
         evidence_review_summary = build_evidence_review_summary(
             topic=topic,
             project_id=str(self.collaboration_context.get("project_id", "")).strip(),
-            literature_synthesis=ScientificWorkflow._derive_literature_synthesis(completed_steps),
+            literature_synthesis=ResearchDirector._derive_literature_synthesis(completed_steps),
             systematic_review_summary=systematic_review,
-            literature_quality_summary=ScientificWorkflow._summarize_quality_grades(
+            literature_quality_summary=ResearchDirector._summarize_quality_grades(
                 [
                     str(evidence.get("quality_grade", "")).strip().lower()
                     for evidence in temporary_claim_graph.get("evidence", [])
                     if isinstance(evidence, dict) and str(evidence.get("quality_grade", "")).strip()
                 ]
             ),
-            conflict_attribution=ScientificWorkflow._summarize_conflict_groups({}),
-            formal_review_record_summary=ScientificWorkflow._derive_formal_review_record_summary(
+            conflict_attribution=ResearchDirector._summarize_conflict_groups({}),
+            formal_review_record_summary=ResearchDirector._derive_formal_review_record_summary(
                 systematic_review_summary=systematic_review,
             ),
             claim_graph=temporary_claim_graph,
@@ -8991,9 +8298,9 @@ class ScientificWorkflow:
             lab_meeting_consensus_summary=lab_meeting_consensus_summary,
             termination_strategy_summary=termination_strategy,
         )
-        hypothesis_gate_summary = ScientificWorkflow._derive_hypothesis_gate_summary(
+        hypothesis_gate_summary = ResearchDirector._derive_hypothesis_gate_summary(
             steps=completed_steps,
-            hypothesis_validation_summary=ScientificWorkflow._derive_hypothesis_validation_summary(
+            hypothesis_validation_summary=ResearchDirector._derive_hypothesis_validation_summary(
                 steps=completed_steps,
                 claim_graph=temporary_claim_graph,
             ),
@@ -9358,7 +8665,7 @@ class ScientificWorkflow:
     async def _route_next_profiles(
         self,
         topic: str,
-        completed_steps: list[WorkflowStepResult],
+        completed_steps: list[ResearchDirectorStepResult],
         remaining_names: list[str],
     ) -> list[str]:
         if not remaining_names:
@@ -9382,10 +8689,10 @@ class ScientificWorkflow:
         if directive_batch:
             return directive_batch[:2]
         negative_signals = self._collect_negative_result_signals(completed_steps)
-        termination_strategy = ScientificWorkflow._derive_routing_termination_strategy(
+        termination_strategy = ResearchDirector._derive_routing_termination_strategy(
             completed_steps
         )
-        heuristic = ScientificWorkflow._heuristic_next_profiles_from_objects(
+        heuristic = ResearchDirector._heuristic_next_profiles_from_objects(
             completed_steps=completed_steps,
             remaining_names=remaining_names,
             negative_signals=negative_signals,
@@ -9403,7 +8710,7 @@ class ScientificWorkflow:
         )
         if heuristic:
             return [name for name in heuristic if name in remaining_names][:2]
-        object_state = ScientificWorkflow._extract_routing_object_state(completed_steps)
+        object_state = ResearchDirector._extract_routing_object_state(completed_steps)
         object_state["evaluation_history_summary"] = (
             self.collaboration_context.get("evaluation_history_summary", {})
             if isinstance(self.collaboration_context.get("evaluation_history_summary", {}), dict)
@@ -9441,7 +8748,7 @@ class ScientificWorkflow:
             ),
             allow_web_search_override=False,
         )
-        router_agent = ScientificAgent(
+        router_agent = ToolCallingAgent(
             model=backend,
             tools=ToolRegistry([]),
             cwd=self.cwd,
@@ -9496,53 +8803,12 @@ class ScientificWorkflow:
         return fallback[:1]
 
     @staticmethod
-    def _collect_execution_records(steps: list[WorkflowStepResult]) -> list[dict[str, Any]]:
-        records: list[dict[str, Any]] = []
-        for step in steps:
-            raw_records = step.state.scratchpad.get("execution_records", [])
-            if not isinstance(raw_records, list):
-                continue
-            for record in raw_records:
-                if isinstance(record, dict):
-                    tagged = dict(record)
-                    tagged.setdefault("profile_name", step.profile_name)
-                    tagged.setdefault("model_meta", step.model_meta)
-                    records.append(tagged)
-        return records
+    def _collect_execution_records(steps: list[ResearchDirectorStepResult]) -> list[dict[str, Any]]:
+        return collect_execution_records(steps)
 
     @staticmethod
-    def _collect_usage_summary(steps: list[WorkflowStepResult]) -> dict[str, Any]:
-        by_profile: list[dict[str, Any]] = []
-        total = {
-            "input_tokens": 0,
-            "output_tokens": 0,
-            "total_tokens": 0,
-            "estimated_cost_usd": 0.0,
-            "rounds": 0,
-        }
-        for step in steps:
-            usage_totals = step.state.scratchpad.get("model_usage_totals", {})
-            if not isinstance(usage_totals, dict):
-                continue
-            profile_summary = {
-                "profile_name": step.profile_name,
-                "model": step.model_meta.get("model", "unknown"),
-                "input_tokens": int(usage_totals.get("input_tokens", 0)),
-                "output_tokens": int(usage_totals.get("output_tokens", 0)),
-                "total_tokens": int(usage_totals.get("total_tokens", 0)),
-                "estimated_cost_usd": round(float(usage_totals.get("estimated_cost_usd", 0.0)), 6),
-                "rounds": int(usage_totals.get("rounds", 0)),
-            }
-            by_profile.append(profile_summary)
-            total["input_tokens"] += profile_summary["input_tokens"]
-            total["output_tokens"] += profile_summary["output_tokens"]
-            total["total_tokens"] += profile_summary["total_tokens"]
-            total["estimated_cost_usd"] = round(
-                total["estimated_cost_usd"] + profile_summary["estimated_cost_usd"],
-                6,
-            )
-            total["rounds"] += profile_summary["rounds"]
-        return {"by_profile": by_profile, "total": total}
+    def _collect_usage_summary(steps: list[ResearchDirectorStepResult]) -> dict[str, Any]:
+        return collect_usage_summary(steps)
 
     def _build_model_meta(self, config: AgentModelConfig) -> dict[str, Any]:
         return self.model_registry.describe_config(config)
@@ -9563,14 +8829,14 @@ class ScientificWorkflow:
         return False
 
     @staticmethod
-    def _needs_conflict_resolution(steps: list[WorkflowStepResult]) -> bool:
+    def _needs_conflict_resolution(steps: list[ResearchDirectorStepResult]) -> bool:
         critique = next((s for s in steps if s.profile_name == "critic"), None)
         coordinator = next((s for s in steps if s.profile_name == "coordinator"), None)
         if critique is None:
             return False
         risks = critique.parsed_output.get("major_risks", [])
         overclaims = critique.parsed_output.get("overclaims", [])
-        negative_signals = ScientificWorkflow._collect_negative_result_signals(steps)
+        negative_signals = ResearchDirector._collect_negative_result_signals(steps)
         if risks or overclaims or (negative_signals and len(negative_signals) >= 2):
             return True
         if coordinator is not None:
@@ -9579,7 +8845,7 @@ class ScientificWorkflow:
 
     @staticmethod
     def _collect_negative_result_signals(
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
     ) -> list[dict[str, Any]]:
         signals: list[dict[str, Any]] = []
         seen: set[str] = set()
@@ -9624,7 +8890,7 @@ class ScientificWorkflow:
 
     @staticmethod
     def _build_negative_result_links(
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
         hypothesis_id_map: dict[tuple[str, str], str],
         hypothesis_nodes: list[dict[str, Any]],
         negative_result_nodes: list[dict[str, Any]],
@@ -9634,7 +8900,7 @@ class ScientificWorkflow:
             global_id = str(item.get("global_hypothesis_id", "")).strip()
             if not global_id:
                 continue
-            hypothesis_term_map[global_id] = ScientificWorkflow._term_set(
+            hypothesis_term_map[global_id] = ResearchDirector._term_set(
                 " ".join(
                     [
                         str(item.get("name", "")),
@@ -9674,7 +8940,7 @@ class ScientificWorkflow:
                     targets.append(mapped)
 
             if not targets:
-                negative_terms = ScientificWorkflow._term_set(
+                negative_terms = ResearchDirector._term_set(
                     " ".join(
                         [
                             str(item.get("result", "")),
@@ -9713,7 +8979,7 @@ class ScientificWorkflow:
 
     def _capture_negative_result_memories(
         self,
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
     ) -> None:
         project_id = self.collaboration_context.get("project_id", "")
         user_id = self.collaboration_context.get("user_id", "")
@@ -11847,7 +11113,7 @@ class ScientificWorkflow:
     def _sync_literature_workspace(
         self,
         topic: str,
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
         research_state: dict[str, Any],
     ) -> None:
         root = self.cwd / "literature"
@@ -12746,7 +12012,7 @@ class ScientificWorkflow:
 
     def _sync_execution_cycle_memories(
         self,
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
         research_state: dict[str, Any],
     ) -> None:
         summary = research_state.get("execution_cycle_summary", {})
@@ -12869,7 +12135,7 @@ class ScientificWorkflow:
 
     @staticmethod
     def _apply_hypothesis_status_updates(
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
         claim_graph: dict[str, Any],
     ) -> None:
         links = claim_graph.get("negative_result_links", [])
@@ -12921,7 +12187,7 @@ class ScientificWorkflow:
                 if not global_id:
                     continue
                 current = str(item.get("status", "active")).strip().lower()
-                next_status = ScientificWorkflow._next_hypothesis_status(
+                next_status = ResearchDirector._next_hypothesis_status(
                     current_status=current,
                     challenge_count=link_counts.get(global_id, 0),
                     explicit_rejection=global_id in explicit_rejections,
@@ -12943,7 +12209,7 @@ class ScientificWorkflow:
                     continue
                 global_id = f"{step.profile_name}::{local_id}"
                 current = str(item.get("status", "active")).strip().lower()
-                next_status = ScientificWorkflow._next_hypothesis_status(
+                next_status = ResearchDirector._next_hypothesis_status(
                     current_status=current,
                     challenge_count=link_counts.get(global_id, 0),
                     explicit_rejection=global_id in explicit_rejections,
@@ -12974,7 +12240,7 @@ class ScientificWorkflow:
 
     def _apply_conflict_memory_updates(
         self,
-        steps: list[WorkflowStepResult],
+        steps: list[ResearchDirectorStepResult],
         claim_graph: dict[str, Any],
     ) -> None:
         resolver = next((s for s in steps if s.profile_name == "conflict_resolver"), None)
@@ -13049,4 +12315,6 @@ class ScientificWorkflow:
                 {"filename": filename, "updated_by": "conflict-resolution"}
                 for filename in sorted(updated_files)
             ]
+
+
 

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -204,3 +204,5 @@ async def append_thread_message(
         created_at=payload.created_at,
     )
     return _to_thread_response(record)
+
+

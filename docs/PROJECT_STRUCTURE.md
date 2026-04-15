@@ -24,8 +24,10 @@ kaivu-agent/
 
 ```text
 kaivu/
-  agents/                # Agent configs, subagent runtime, role execution
-  ai_research/           # AI research workflow, evaluation, ablation, executor scaffold
+  agents/                # ScientificAgent lifecycle, ProfiledScientificAgent, profiles, stage plans, subagent runtime
+  director_services/     # ResearchDirector service slices for state, literature, experiments, memory/graph sync, reports
+  tasks/                 # Task adapters that normalize specific tasks into ScientificTask
+  ai_research/           # AI research capabilities, evaluation, ablation, executor scaffold
   benchmarks/            # Built-in benchmark and replay cases
   experiments/           # Experiment records, protocols, observations, quality control
   graph/                 # Typed provenance graph registry
@@ -41,11 +43,13 @@ Root-level modules under `kaivu/` are still allowed for cross-cutting scientific
 Recommended placement:
 
 ```text
-kaivu/ai_research/       # AI discipline and task execution planning
+kaivu/agents/            # ScientificAgent, ProfiledScientificAgent, DisciplineProfile, StagePlan, role/config/runtime concerns
+kaivu/director_services/ # Project-level director services extracted from the large ResearchDirector module
+kaivu/tasks/             # TaskAdapter, ScientificTask, KaggleTaskAdapter
+kaivu/ai_research/       # AI discipline capabilities and task execution planning
 kaivu/experiments/       # Discipline-neutral experiment records
 kaivu/runtime/           # Runtime observability, session, context, replay
 kaivu/graph/             # Source-of-truth provenance graph
-kaivu/agents/            # Agent role/config/runtime concerns
 ```
 
 ## Research Workspace
@@ -89,14 +93,61 @@ artifacts/
     experiments/         # Local experiment registry
     programs/            # Research program snapshots
     runtime_manifests/   # Per-run runtime manifests
-    ai_research/         # Generated AIResearchWorkflow state
+    runtime/learning/    # Observation-only learning episodes and feedback
+    ai_research/         # Generated AI research adapter and executor state
   service/               # Service thread and collaboration state
 ```
 
-New workflow, memory, literature, graph, event, program, and runtime-manifest writes should use
+New lifecycle, memory, literature, graph, event, program, and runtime-manifest writes should use
 `ResearchWorkspaceLayout` and include `discipline`, `project_id`, `group_id`, and `user_id` when
 available. The legacy root folders remain readable for compatibility, but different discipline
 agents should not write into the same root-level `literature/`, `memory/`, or `.state/` namespace.
+
+## Learning Runtime Layer
+
+Kaivu has an observation-only scientific learning layer under each scoped `.state` namespace:
+
+```text
+.state/disciplines/<discipline>/projects/<project>/runtime/learning/
+  scientific_learning_episodes.jsonl
+  benchmark_seed_episodes.jsonl
+  human_feedback.jsonl
+  episodes/<episode-id>.json
+  benchmarks/learning_benchmark_dataset.jsonl
+  benchmarks/learning_benchmark_report.json
+  exports/<target>_training_dataset.jsonl
+  exports/<target>_training_dataset.manifest.json
+  replay/learning_replay_index.json
+  replay/learning_replay_report.json
+```
+
+This layer records unified scientific episodes for observability, replay, benchmarking, and future
+training data accumulation. It must not control current routing, scheduling, hypothesis gating, or
+scientific decisions. Future optimization systems can consume the data through explicit interfaces
+for single-agent policy optimization, multi-agent collaboration optimization, reward modeling,
+preference learning, and agentic reinforcement learning.
+
+The service exposes this layer through `/learning/*` endpoints:
+
+```text
+GET  /learning/episodes          # inspect recent episodes
+GET  /learning/validate          # validate episode schema and governance constraints
+POST /learning/feedback          # append human feedback without changing business logic
+GET  /learning/feedback/summary  # aggregate ratings and preference pairs
+POST /learning/export-training   # export policy/reward/preference/collaboration samples
+POST /learning/build-benchmark   # build benchmark dataset from episodes
+POST /learning/build-replay      # build replay index from episodes
+POST /learning/run-benchmark-checks
+POST /learning/run-replay-checks
+```
+
+Prompt construction should use compact context packs instead of reading whole memory, literature, or
+runtime directories:
+
+```text
+POST /context/pack        # select compact memory/literature/graph/failed-attempt context
+POST /memory/compact      # merge duplicate memory records and archive cold secondary records
+```
 
 Rule of thumb:
 
@@ -138,6 +189,9 @@ Mathematics
 ```
 
 Do not duplicate memory, scheduler, graph, runtime manifest, or permission systems inside each adapter. Adapters should contribute domain-specific contracts, not reinvent the agent runtime.
+
+See `docs/director_runtime_boundary.md` for the boundary between `ResearchDirector`,
+`ScientificAgentRuntime`, `ScientificAgent`, and `director_services/`.
 
 ## Temporary Files
 

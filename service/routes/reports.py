@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -40,3 +40,5 @@ async def get_report(
         report_markdown=record.report_markdown,
         report_path=report_path,
     )
+
+

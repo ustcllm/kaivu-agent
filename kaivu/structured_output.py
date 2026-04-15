@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import json
 from dataclasses import dataclass
@@ -159,3 +159,5 @@ def _default_for_schema(schema: dict[str, Any]) -> Any:
     if expected == "boolean":
         return False
     return None
+
+

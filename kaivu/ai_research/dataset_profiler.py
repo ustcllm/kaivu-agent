@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 import csv
 from collections import Counter
@@ -131,3 +131,5 @@ def build_dataset_profile(
         "columns": columns,
         "warnings": warnings,
     }
+
+

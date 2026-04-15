@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass, field
 from typing import Iterable
@@ -102,3 +102,5 @@ def collect_observation_file_references(
     for item in observations:
         files.extend(path for path in item.files if path)
     return list(dict.fromkeys(files))
+
+

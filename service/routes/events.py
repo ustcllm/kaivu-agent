@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
@@ -50,3 +50,5 @@ async def summarize_research_events(
         topic=topic,
     )
     return ResearchEventSummaryResponse(**result)
+
+

@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from typing import Any
 
@@ -56,3 +56,5 @@ def build_ai_artifact_contract(
         "metric": evaluation_protocol.get("primary_metric", ""),
         "candidate_models": training_recipe.get("candidate_models", []),
     }
+
+

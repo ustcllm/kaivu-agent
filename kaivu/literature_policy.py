@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from typing import Any
@@ -168,3 +168,5 @@ def _normalize_level(value: str, *, fallback: str) -> str:
     }
     normalized = aliases.get(normalized, normalized)
     return normalized if normalized in {"very_low", "low", "medium", "high", "critical"} else fallback
+
+

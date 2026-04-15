@@ -21,7 +21,7 @@ class AgentRunResult:
     state: AgentState
 
 
-class ScientificAgent:
+class ToolCallingAgent:
     def __init__(
         self,
         *,
@@ -339,4 +339,6 @@ class ScientificAgent:
             )
         except Exception:
             return
+
+
 

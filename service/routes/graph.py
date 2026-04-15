@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Request
 
@@ -83,3 +83,5 @@ async def get_graph(
         status=record.status,
         claim_graph=runtime.get_claim_graph(run_id),
     )
+
+

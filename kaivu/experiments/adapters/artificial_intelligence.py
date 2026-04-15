@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from ..quality_control import QualityControlCheckDefinition, QualityControlChecklist
 
@@ -43,3 +43,5 @@ def artificial_intelligence_quality_control_checklist() -> QualityControlCheckli
             ),
         ],
     )
+
+

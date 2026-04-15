@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from dataclasses import dataclass, field
 
@@ -32,3 +32,5 @@ class PromptBuilder:
             *data.extra_sections,
         ]
         return render_sections(sections)
+
+

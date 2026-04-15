@@ -1,4 +1,4 @@
-from __future__ import annotations
+﻿from __future__ import annotations
 
 from fastapi import APIRouter, Request
 
@@ -6,6 +6,8 @@ from ..schemas import (
     MemoryAuditResponse,
     MemoryAutoGovernRequest,
     MemoryAutoGovernResponse,
+    MemoryCompactRequest,
+    MemoryCompactResponse,
     MemoryMutationResponse,
     MemoryProposalListResponse,
     MemoryProposalDecisionRequest,
@@ -111,6 +113,13 @@ async def auto_govern_memory(request: Request, payload: MemoryAutoGovernRequest)
     return MemoryAutoGovernResponse(**result)
 
 
+@router.post("/compact", response_model=MemoryCompactResponse)
+async def compact_memory(request: Request, payload: MemoryCompactRequest) -> MemoryCompactResponse:
+    runtime = request.app.state.workflow_runtime
+    result = runtime.compact_memory(payload.model_dump())
+    return MemoryCompactResponse(**result)
+
+
 @router.post("/proposals/approve", response_model=MemoryPromoteResponse)
 async def approve_memory_proposal(request: Request, payload: MemoryProposalDecisionRequest) -> MemoryPromoteResponse:
     runtime = request.app.state.workflow_runtime
@@ -134,3 +143,5 @@ async def reject_memory_proposal(request: Request, payload: MemoryProposalDecisi
     runtime = request.app.state.workflow_runtime
     result = runtime.reject_memory_proposal(payload.model_dump())
     return MemoryPromoteResponse(**result)
+
+

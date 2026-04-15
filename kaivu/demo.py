@@ -30,7 +30,7 @@ if __package__ in (None, ""):
         ToolRegistry,
         WriteFileTool,
     )
-    from kaivu.workflow import ScientificWorkflow
+    from kaivu.director import ResearchDirector
 else:
     from .data_tools import BasicStatsTool, PlotCsvTool, ReadTableTool
     from .literature_tools import ArxivSearchTool, CrossrefSearchTool, PubMedSearchTool, ResolveCitationTool
@@ -54,7 +54,7 @@ else:
         ToolRegistry,
         WriteFileTool,
     )
-    from .workflow import ScientificWorkflow
+    from .director import ResearchDirector
 
 
 def build_demo_workspace(root: Path) -> None:
@@ -122,7 +122,7 @@ async def main() -> None:
     if model_config_path is not None:
         model_registry.load_config_file(model_config_path)
 
-    workflow = ScientificWorkflow(
+    director = ResearchDirector(
         cwd=root,
         model_name=os.getenv("KAIVU_MODEL", "gpt-5"),
         permission_policy=PermissionPolicy(
@@ -189,7 +189,7 @@ async def main() -> None:
         all_tools = all_tools.merge(await mcp_registry.build_tool_registry())
 
     try:
-        result = await workflow.run(topic, tools=all_tools)
+        result = await director.run(topic, tools=all_tools)
     finally:
         await mcp_registry.close()
     print("TOPIC:")
@@ -246,4 +246,6 @@ def _resolve_model_config_path(root: Path) -> Path | None:
 
 if __name__ == "__main__":
     asyncio.run(main())
+
+
 
